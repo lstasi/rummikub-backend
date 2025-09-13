@@ -8,7 +8,49 @@ from models import (
 )
 from game_service import GameService
 
-app = FastAPI(title="Rummikub Backend API", version="1.0.0")
+app = FastAPI(
+    title="Rummikub Backend API",
+    version="1.0.0",
+    description="""
+A Python-based REST API for playing Rummikub online. This backend provides game logic, 
+session management, and all necessary endpoints to play Rummikub without requiring user registration.
+
+## Features
+- Complete Rummikub game logic implementation
+- Session-based authentication (no user registration required)
+- Invite code system for joining games
+- In-memory database for fast gameplay
+- RESTful API with comprehensive game state management
+
+## Authentication
+Game creation requires basic authentication:
+- Username: `admin`
+- Password: `rummikub2024`
+
+All other game operations use session-based authentication with session IDs.
+""",
+    contact={
+        "name": "Rummikub Backend API",
+        "url": "https://github.com/lstasi/rummikub-backend",
+    },
+    license_info={
+        "name": "MIT License",
+    },
+    openapi_tags=[
+        {
+            "name": "general",
+            "description": "General API information and health checks",
+        },
+        {
+            "name": "game-management",
+            "description": "Game creation and basic game information",
+        },
+        {
+            "name": "game-play",
+            "description": "Player actions and game state management",
+        },
+    ]
+)
 security = HTTPBasic()
 game_service = GameService()
 
@@ -31,7 +73,7 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
     return credentials
 
 
-@app.get("/")
+@app.get("/", tags=["general"])
 async def root():
     """Root endpoint with basic API information."""
     return {
@@ -46,14 +88,18 @@ async def root():
     }
 
 
-@app.post("/game")
+@app.post("/game", tags=["game-management"])
 async def create_game(
     request: CreateGameRequest,
     credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)
 ):
     """
     Create a new game. Requires authentication.
-    Returns game ID and invite code.
+    
+    Returns game ID and invite code that players can use to join the game.
+    The game will be in 'waiting' status until players join.
+    
+    **Authentication Required**: Basic Auth (admin:rummikub2024)
     """
     game = game_service.create_game(request.max_players)
     
@@ -66,11 +112,15 @@ async def create_game(
     }
 
 
-@app.post("/game/{game_id}/join")
+@app.post("/game/{game_id}/join", tags=["game-play"])
 async def join_game(game_id: str, request: JoinGameRequest):
     """
     Join a game using invite code and player name.
-    Returns session ID for subsequent requests.
+    
+    Returns session ID for subsequent requests. The session ID must be used
+    in all future API calls to identify the player.
+    
+    The game will automatically start when 2 or more players have joined.
     """
     game, session_id, message = game_service.join_game(
         request.invite_code, 
@@ -91,11 +141,15 @@ async def join_game(game_id: str, request: JoinGameRequest):
     }
 
 
-@app.get("/game/{game_id}")
+@app.get("/game/{game_id}", tags=["game-play"])
 async def get_game_state(game_id: str, session_id: str):
     """
     Get current game state. Requires session ID.
-    Returns game state with only the requesting player's tiles.
+    
+    Returns game state with only the requesting player's tiles visible.
+    Other players' tiles counts are shown but not the actual tiles.
+    
+    **Authentication Required**: Session ID (obtained from joining a game)
     """
     # Validate session
     session_info = game_service.validate_session(session_id)
@@ -112,11 +166,19 @@ async def get_game_state(game_id: str, session_id: str):
     return game_state
 
 
-@app.post("/game/{game_id}/action")
+@app.post("/game/{game_id}/action", tags=["game-play"])
 async def perform_action(game_id: str, session_id: str, action: GameAction):
     """
     Perform a game action. Requires session ID.
-    Available actions: place_tiles, draw_tile, rearrange
+    
+    **Available Actions:**
+    - `place_tiles`: Place tiles from your hand onto the board in new combinations
+    - `draw_tile`: Draw a tile from the pool (ends your turn)
+    - `rearrange`: Rearrange existing combinations on the board (coming soon)
+    
+    **Authentication Required**: Session ID (obtained from joining a game)
+    
+    **Note**: You can only perform actions during your turn.
     """
     # Validate session
     session_info = game_service.validate_session(session_id)
@@ -131,11 +193,14 @@ async def perform_action(game_id: str, session_id: str, action: GameAction):
     return result
 
 
-@app.get("/game/{game_id}/info")
+@app.get("/game/{game_id}/info", tags=["game-management"])
 async def get_game_info(game_id: str):
     """
     Get basic game information (no session required).
-    Useful for checking if a game exists and its status.
+    
+    Useful for checking if a game exists, its status, and who has joined.
+    This endpoint doesn't require authentication and can be used to verify
+    a game ID before attempting to join.
     """
     game = game_service.get_game_by_id(game_id)
     if not game:

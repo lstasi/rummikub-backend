@@ -15,6 +15,21 @@ A Python-based REST API for playing Rummikub online. This backend provides game 
 
 See [RUMMIKUB_RULES.md](RUMMIKUB_RULES.md) for complete game rules and gameplay instructions.
 
+## API Documentation
+
+### OpenAPI Specification
+A complete OpenAPI 3.1.0 specification is available in the repository:
+- **Static file**: [`openapi.json`](openapi.json) - Version-controlled OpenAPI specification
+- **Live documentation**: Available when server is running:
+  - Swagger UI: `http://localhost:8000/docs`
+  - ReDoc: `http://localhost:8000/redoc`
+  - OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+To regenerate the OpenAPI specification file:
+```bash
+python generate_openapi.py
+```
+
 ## API Endpoints
 
 ### Authentication
@@ -141,6 +156,8 @@ rummikub-backend/
 ├── models.py            # Pydantic models and data structures
 ├── game_service.py      # Game logic and business rules
 ├── test_api.py         # API testing script
+├── generate_openapi.py  # Script to generate OpenAPI specification
+├── openapi.json         # OpenAPI 3.1.0 specification (generated)
 ├── requirements.txt     # Python dependencies
 ├── Dockerfile          # Docker container configuration
 ├── docker-compose.yml  # Docker compose for easy deployment
