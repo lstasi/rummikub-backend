@@ -1,0 +1,440 @@
+{
+  "components": {
+    "schemas": {
+      "CreateGameRequest": {
+        "properties": {
+          "max_players": {
+            "default": 4,
+            "maximum": 4.0,
+            "minimum": 2.0,
+            "title": "Max Players",
+            "type": "integer"
+          }
+        },
+        "title": "CreateGameRequest",
+        "type": "object"
+      },
+      "GameAction": {
+        "properties": {
+          "action_type": {
+            "title": "Action Type",
+            "type": "string"
+          },
+          "combinations": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Combinations"
+          },
+          "target_combination_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Combination Id"
+          },
+          "tiles": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tiles"
+          }
+        },
+        "required": [
+          "action_type"
+        ],
+        "title": "GameAction",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "JoinGameRequest": {
+        "properties": {
+          "invite_code": {
+            "title": "Invite Code",
+            "type": "string"
+          },
+          "player_name": {
+            "title": "Player Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invite_code",
+          "player_name"
+        ],
+        "title": "JoinGameRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBasic": {
+        "scheme": "basic",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "contact": {
+      "name": "Rummikub Backend API",
+      "url": "https://github.com/lstasi/rummikub-backend"
+    },
+    "description": "\nA Python-based REST API for playing Rummikub online. This backend provides game logic, \nsession management, and all necessary endpoints to play Rummikub without requiring user registration.\n\n## Features\n- Complete Rummikub game logic implementation\n- Session-based authentication (no user registration required)\n- Invite code system for joining games\n- In-memory database for fast gameplay\n- RESTful API with comprehensive game state management\n\n## Authentication\nGame creation requires basic authentication:\n- Username: `admin`\n- Password: `rummikub2024`\n\nAll other game operations use session-based authentication with session IDs.\n",
+    "license": {
+      "name": "MIT License"
+    },
+    "title": "Rummikub Backend API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "description": "Root endpoint with basic API information.",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Root",
+        "tags": [
+          "general"
+        ]
+      }
+    },
+    "/game": {
+      "post": {
+        "description": "Create a new game. Requires authentication.\n\nReturns game ID and invite code that players can use to join the game.\nThe game will be in 'waiting' status until players join.\n\n**Authentication Required**: Basic Auth (admin:rummikub2024)",
+        "operationId": "create_game_game_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBasic": []
+          }
+        ],
+        "summary": "Create Game",
+        "tags": [
+          "game-management"
+        ]
+      }
+    },
+    "/game/{game_id}": {
+      "get": {
+        "description": "Get current game state. Requires session ID.\n\nReturns game state with only the requesting player's tiles visible.\nOther players' tiles counts are shown but not the actual tiles.\n\n**Authentication Required**: Session ID (obtained from joining a game)",
+        "operationId": "get_game_state_game__game_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "title": "Game Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Game State",
+        "tags": [
+          "game-play"
+        ]
+      }
+    },
+    "/game/{game_id}/action": {
+      "post": {
+        "description": "Perform a game action. Requires session ID.\n\n**Available Actions:**\n- `place_tiles`: Place tiles from your hand onto the board in new combinations\n- `draw_tile`: Draw a tile from the pool (ends your turn)\n- `rearrange`: Rearrange existing combinations on the board (coming soon)\n\n**Authentication Required**: Session ID (obtained from joining a game)\n\n**Note**: You can only perform actions during your turn.",
+        "operationId": "perform_action_game__game_id__action_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "title": "Game Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Perform Action",
+        "tags": [
+          "game-play"
+        ]
+      }
+    },
+    "/game/{game_id}/info": {
+      "get": {
+        "description": "Get basic game information (no session required).\n\nUseful for checking if a game exists, its status, and who has joined.\nThis endpoint doesn't require authentication and can be used to verify\na game ID before attempting to join.",
+        "operationId": "get_game_info_game__game_id__info_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "title": "Game Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Game Info",
+        "tags": [
+          "game-management"
+        ]
+      }
+    },
+    "/game/{game_id}/join": {
+      "post": {
+        "description": "Join a game using invite code and player name.\n\nReturns session ID for subsequent requests. The session ID must be used\nin all future API calls to identify the player.\n\nThe game will automatically start when 2 or more players have joined.",
+        "operationId": "join_game_game__game_id__join_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "title": "Game Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinGameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join Game",
+        "tags": [
+          "game-play"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "General API information and health checks",
+      "name": "general"
+    },
+    {
+      "description": "Game creation and basic game information",
+      "name": "game-management"
+    },
+    {
+      "description": "Player actions and game state management",
+      "name": "game-play"
+    }
+  ]
+}
