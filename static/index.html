@@ -230,6 +230,36 @@
             flex-wrap: wrap;
         }
 
+        .game-actions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            z-index: 1000;
+        }
+
+        .game-actions.dragging {
+            pointer-events: none;
+        }
+
+        .game-actions button {
+            min-width: 120px;
+            font-size: 14px;
+            padding: 10px 20px;
+        }
+
+        .board-container {
+            margin-bottom: 100px; /* Make room for fixed buttons */
+        }
+
         .status-message {
             text-align: center;
             padding: 15px;
@@ -481,7 +511,7 @@
                 </div>
             </div>
 
-            <div class="game-board">
+            <div class="game-board board-container">
                 <h3>Game Board</h3>
                 <div id="board-area" class="board-area">
                     <div class="loading" id="board-loading">
@@ -495,11 +525,14 @@
                 <h3>Your Tiles (<span id="hand-count">0</span>)</h3>
                 <div id="hand-tiles" class="hand-tiles"></div>
                 
-                <div class="actions">
-                    <button id="draw-tile-btn" disabled>Draw Tile</button>
-                    <button id="place-tiles-btn" disabled>Place Selected Tiles</button>
-                    <button id="refresh-btn">Refresh Game</button>
-                </div>
+                <!-- Removed old action buttons - they'll be at bottom now -->
+            </div>
+
+            <!-- Fixed Game Actions at Bottom -->
+            <div class="game-actions" id="game-actions" style="display: none;">
+                <button id="draw-tile-btn" disabled>Draw Tile</button>
+                <button id="next-turn-btn" disabled>Next Turn</button>
+                <button id="reset-board-btn" disabled>Reset Board</button>
             </div>
 
             <div id="game-message" class="status-message hidden"></div>
@@ -507,6 +540,82 @@
     </div>
 
     <script>
+        // Client-side Rules Engine
+        class RummikubRulesEngine {
+            static isValidCombination(tiles) {
+                if (tiles.length < 3) return false;
+                return this.isValidGroup(tiles) || this.isValidRun(tiles);
+            }
+
+            static isValidGroup(tiles) {
+                if (tiles.length > 4) return false;
+
+                const numbers = new Set();
+                const colors = new Set();
+
+                for (const tile of tiles) {
+                    if (!tile.is_joker) {
+                        numbers.add(tile.number);
+                        colors.add(tile.color);
+                    }
+                }
+
+                // All non-joker tiles should have same number and different colors
+                return numbers.size <= 1 && colors.size === tiles.filter(t => !t.is_joker).length;
+            }
+
+            static isValidRun(tiles) {
+                const colors = new Set();
+                const numbers = [];
+
+                for (const tile of tiles) {
+                    if (!tile.is_joker) {
+                        colors.add(tile.color);
+                        numbers.push(tile.number);
+                    }
+                }
+
+                // All non-joker tiles should have same color
+                if (colors.size > 1) return false;
+
+                if (numbers.length === 0) return true; // All jokers
+
+                numbers.sort((a, b) => a - b);
+
+                // Check if numbers can form a consecutive sequence
+                const minNum = numbers[0];
+                const maxNum = numbers[numbers.length - 1];
+                const expectedLength = maxNum - minNum + 1;
+
+                return expectedLength <= tiles.length && expectedLength >= 3;
+            }
+
+            static getCombinationValue(tiles) {
+                return tiles.reduce((sum, tile) => {
+                    if (tile.is_joker) {
+                        // For now, assume joker value is context-dependent
+                        // In a real implementation, we'd need to determine the joker's value
+                        return sum + 0; // Will be calculated based on position
+                    }
+                    return sum + tile.number;
+                }, 0);
+            }
+
+            static validateInitialMeld(combinations, hasInitialMeld) {
+                if (hasInitialMeld) return true;
+
+                const totalValue = combinations.reduce((sum, combo) => 
+                    sum + this.getCombinationValue(combo.tiles), 0);
+                
+                return totalValue >= 30;
+            }
+
+            static validateBoardState(combinations) {
+                // All combinations on the board must be valid
+                return combinations.every(combo => this.isValidCombination(combo.tiles));
+            }
+        }
+
         class RummikubGame {
             constructor() {
                 // Automatically determine backend URL based on current host
@@ -521,9 +630,14 @@
                 this.sessionId = '';
                 this.playerName = '';
                 this.gameState = null;
-                this.selectedTiles = new Set();
+                this.selectedTiles = new Set(); // Keep for internal use but not for UI
                 this.draggedTile = null;
                 this.playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
+                
+                // New properties for board state management
+                this.currentBoardState = [];
+                this.savedBoardState = []; // For reset functionality
+                this.pendingTiles = []; // Tiles placed on board but not yet confirmed
                 
                 this.initializeElements();
                 this.attachEventListeners();
@@ -575,18 +689,23 @@
                 this.boardLoading = document.getElementById('board-loading');
                 this.handTiles = document.getElementById('hand-tiles');
                 this.handCount = document.getElementById('hand-count');
-                this.drawTileBtn = document.getElementById('draw-tile-btn');
-                this.placeTilesBtn = document.getElementById('place-tiles-btn');
-                this.refreshBtn = document.getElementById('refresh-btn');
                 this.gameMessage = document.getElementById('game-message');
+                
+                // New game action buttons
+                this.gameActions = document.getElementById('game-actions');
+                this.drawTileBtn = document.getElementById('draw-tile-btn');
+                this.nextTurnBtn = document.getElementById('next-turn-btn');
+                this.resetBoardBtn = document.getElementById('reset-board-btn');
             }
 
             attachEventListeners() {
                 this.joinGameBtn.addEventListener('click', () => this.joinGame());
                 this.createGameBtn.addEventListener('click', () => this.showLoginScreen());
+                
+                // New game action listeners
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
-                this.placeTilesBtn.addEventListener('click', () => this.placeTiles());
-                this.refreshBtn.addEventListener('click', () => this.refreshGame());
+                this.nextTurnBtn.addEventListener('click', () => this.nextTurn());
+                this.resetBoardBtn.addEventListener('click', () => this.resetBoard());
 
                 // Login screen listeners
                 this.loginBtn.addEventListener('click', () => this.authenticateAdmin());
@@ -628,6 +747,10 @@
                         } else if (this.playerNameInput.value && this.inviteCodeInput.value) {
                             this.joinGame();
                         }
+                    }
+                    // ESC key to reset board
+                    if (e.key === 'Escape' && !this.gameScreen.classList.contains('hidden')) {
+                        this.resetBoard();
                     }
                 });
             }
@@ -753,6 +876,7 @@
             showGame() {
                 this.hideAllScreens();
                 this.gameScreen.classList.remove('hidden');
+                this.gameActions.style.display = 'flex'; // Show action buttons
             }
 
             hideAllScreens() {
@@ -761,6 +885,7 @@
                 this.configScreen.classList.add('hidden');
                 this.linksScreen.classList.add('hidden');
                 this.gameScreen.classList.add('hidden');
+                this.gameActions.style.display = 'none'; // Hide action buttons
             }
 
             generatePlayerLinks(gameId) {
@@ -981,8 +1106,10 @@
                 this.updateHand();
 
                 // Update action buttons
-                this.drawTileBtn.disabled = !this.gameState.can_play;
-                this.placeTilesBtn.disabled = !this.gameState.can_play || this.selectedTiles.size === 0;
+                const canPlay = this.gameState.can_play;
+                this.drawTileBtn.disabled = !canPlay;
+                this.nextTurnBtn.disabled = !canPlay || this.pendingTiles.length === 0;
+                this.resetBoardBtn.disabled = !canPlay || this.pendingTiles.length === 0;
 
                 // Hide loading
                 this.boardLoading.classList.add('hidden');
@@ -993,15 +1120,25 @@
                 const existingCombs = this.boardArea.querySelectorAll('.combination');
                 existingCombs.forEach(comb => comb.remove());
 
-                if (!this.gameState.board.length) {
+                if (!this.gameState.board.length && this.pendingTiles.length === 0) {
                     this.boardArea.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No tiles on board yet</p>';
                     return;
                 }
 
+                // Show confirmed combinations from server
                 this.gameState.board.forEach(combination => {
-                    const combEl = this.createCombinationElement(combination);
+                    const combEl = this.createCombinationElement(combination, false);
                     this.boardArea.appendChild(combEl);
                 });
+
+                // Show pending combinations (not yet sent to server)
+                this.pendingTiles.forEach(combination => {
+                    const combEl = this.createCombinationElement(combination, true);
+                    this.boardArea.appendChild(combEl);
+                });
+                
+                // Save current state for reset functionality  
+                this.savedBoardState = JSON.parse(JSON.stringify(this.gameState.board));
             }
 
             updateHand() {
@@ -1014,13 +1151,23 @@
                 });
             }
 
-            createCombinationElement(combination) {
+            createCombinationElement(combination, isPending = false) {
                 const combEl = document.createElement('div');
                 combEl.className = 'combination';
+                if (isPending) {
+                    combEl.classList.add('pending');
+                    combEl.style.border = '2px dashed #667eea';
+                }
                 combEl.dataset.combinationId = combination.id;
 
                 combination.tiles.forEach(tile => {
                     const tileEl = this.createTileElement(tile, false);
+                    if (isPending) {
+                        // Allow dragging pending tiles back to hand
+                        tileEl.draggable = true;
+                        tileEl.addEventListener('dragstart', this.handleDragStart.bind(this));
+                        tileEl.addEventListener('dragend', this.handleDragEnd.bind(this));
+                    }
                     combEl.appendChild(tileEl);
                 });
 
@@ -1042,7 +1189,7 @@
                 }
 
                 if (isInHand) {
-                    tileEl.addEventListener('click', () => this.toggleTileSelection(tileEl));
+                    // Only add drag events for hand tiles - no more click selection
                     tileEl.addEventListener('dragstart', this.handleDragStart.bind(this));
                     tileEl.addEventListener('dragend', this.handleDragEnd.bind(this));
                 }
@@ -1051,17 +1198,8 @@
             }
 
             toggleTileSelection(tileEl) {
-                const tileId = tileEl.dataset.tileId;
-                
-                if (this.selectedTiles.has(tileId)) {
-                    this.selectedTiles.delete(tileId);
-                    tileEl.classList.remove('selected');
-                } else {
-                    this.selectedTiles.add(tileId);
-                    tileEl.classList.add('selected');
-                }
-
-                this.placeTilesBtn.disabled = !this.gameState.can_play || this.selectedTiles.size === 0;
+                // This method is no longer used in the new drag-only interface
+                // Keeping for backwards compatibility but functionality removed
             }
 
             handleDragStart(e) {
@@ -1069,11 +1207,17 @@
                 e.target.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', e.target.dataset.tileId);
+                
+                // Disable pointer events on game actions during drag
+                this.gameActions.classList.add('dragging');
             }
 
             handleDragEnd(e) {
                 e.target.classList.remove('dragging');
                 this.draggedTile = null;
+                
+                // Re-enable pointer events on game actions after drag
+                this.gameActions.classList.remove('dragging');
             }
 
             handleDragOver(e) {
@@ -1095,34 +1239,87 @@
                         }
                     }, 500);
 
-                    // Select the tile for placement
-                    this.selectedTiles.add(tileId);
-                    this.draggedTile.classList.add('selected');
-                    this.placeTilesBtn.disabled = false;
-                    
-                    this.showMessage('Tile selected for placement. Click "Place Selected Tiles" to confirm.', 'info');
+                    // Find the tile object
+                    const tile = this.gameState.your_tiles.find(t => t.id === tileId);
+                    if (tile) {
+                        // Create a new single-tile combination or add to existing combination
+                        this.addTileToBoard(tile);
+                    }
                 }
+            }
+
+            addTileToBoard(tile) {
+                // For now, create single-tile combination
+                // In future, could implement logic to add to existing combinations
+                const newCombination = {
+                    id: 'pending-' + Date.now(),
+                    tiles: [tile]
+                };
+                
+                this.pendingTiles.push(newCombination);
+                
+                // Remove tile from hand visually (it's still in gameState until confirmed)
+                const tileEl = document.querySelector(`#hand-tiles [data-tile-id="${tile.id}"]`);
+                if (tileEl) {
+                    tileEl.style.display = 'none';
+                }
+                
+                this.updateBoard();
+                this.updateButtonStates();
+                
+                this.showMessage('Tile placed on board. Use "Next Turn" to confirm or "Reset Board" to undo.', 'info');
+            }
+
+            updateButtonStates() {
+                const canPlay = this.gameState?.can_play;
+                this.drawTileBtn.disabled = !canPlay || this.pendingTiles.length > 0;
+                this.nextTurnBtn.disabled = !canPlay || this.pendingTiles.length === 0;
+                this.resetBoardBtn.disabled = !canPlay || this.pendingTiles.length === 0;
             }
 
             handleHandDrop(e) {
                 e.preventDefault();
                 this.handTiles.classList.remove('drag-over');
                 
-                // If tile was dragged from board back to hand, deselect it
+                // If tile was dragged from board back to hand, remove from pending
                 const tileId = e.dataTransfer.getData('text/plain');
                 if (tileId) {
-                    this.selectedTiles.delete(tileId);
-                    const tileEl = document.querySelector(`[data-tile-id="${tileId}"]`);
-                    if (tileEl) {
-                        tileEl.classList.remove('selected');
-                    }
-                    this.placeTilesBtn.disabled = this.selectedTiles.size === 0;
+                    this.removeTileFromBoard(tileId);
                 }
+            }
+
+            removeTileFromBoard(tileId) {
+                // Find and remove tile from pending combinations
+                for (let i = this.pendingTiles.length - 1; i >= 0; i--) {
+                    const combo = this.pendingTiles[i];
+                    const tileIndex = combo.tiles.findIndex(t => t.id === tileId);
+                    if (tileIndex !== -1) {
+                        combo.tiles.splice(tileIndex, 1);
+                        if (combo.tiles.length === 0) {
+                            this.pendingTiles.splice(i, 1);
+                        }
+                        break;
+                    }
+                }
+                
+                // Show tile back in hand
+                const tileEl = document.querySelector(`#hand-tiles [data-tile-id="${tileId}"]`);
+                if (tileEl) {
+                    tileEl.style.display = '';
+                }
+                
+                this.updateBoard();
+                this.updateButtonStates();
             }
 
             async drawTile() {
                 if (!this.gameState?.can_play) {
                     this.showMessage('Not your turn!', 'warning');
+                    return;
+                }
+
+                if (this.pendingTiles.length > 0) {
+                    this.showMessage('Please confirm or reset your board changes first!', 'warning');
                     return;
                 }
 
@@ -1148,7 +1345,7 @@
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.showMessage('Drew a tile!', 'success');
+                        this.showMessage('Drew a tile! Turn ended.', 'success');
                         this.refreshGame();
                     } else {
                         this.showMessage(result.message, 'error');
@@ -1160,28 +1357,40 @@
                 }
             }
 
-            async placeTiles() {
+            async nextTurn() {
                 if (!this.gameState?.can_play) {
                     this.showMessage('Not your turn!', 'warning');
                     return;
                 }
 
-                if (this.selectedTiles.size === 0) {
-                    this.showMessage('No tiles selected!', 'warning');
+                if (this.pendingTiles.length === 0) {
+                    this.showMessage('No tiles to place!', 'warning');
                     return;
                 }
 
-                // Validate locally before sending
-                const selectedTileObjs = this.gameState.your_tiles.filter(
-                    tile => this.selectedTiles.has(tile.id)
-                );
+                // Validate all pending combinations locally
+                const allTiles = [];
+                for (const combo of this.pendingTiles) {
+                    allTiles.push(...combo.tiles);
+                    if (!RummikubRulesEngine.isValidCombination(combo.tiles)) {
+                        this.showMessage('Invalid combination detected! Please fix or reset.', 'error');
+                        return;
+                    }
+                }
 
-                if (!this.isValidCombination(selectedTileObjs)) {
-                    this.showMessage('Invalid combination! Need at least 3 tiles forming a valid group or run.', 'warning');
-                    return;
+                // Check initial meld requirement if needed
+                const player = this.gameState.players.find(p => p.name === this.playerName);
+                if (!player?.has_initial_meld) {
+                    if (!RummikubRulesEngine.validateInitialMeld(this.pendingTiles, false)) {
+                        this.showMessage('Initial meld must be worth at least 30 points!', 'error');
+                        return;
+                    }
                 }
 
                 try {
+                    // Send all tiles to place
+                    const tileIds = allTiles.map(tile => tile.id);
+                    
                     const response = await fetch(
                         `${this.baseUrl}/game/${this.gameId}/action`,
                         {
@@ -1192,7 +1401,7 @@
                             },
                             body: JSON.stringify({
                                 action_type: 'place_tiles',
-                                tiles: Array.from(this.selectedTiles)
+                                tiles: tileIds
                             })
                         }
                     );
@@ -1204,73 +1413,68 @@
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.showMessage('Tiles placed successfully!', 'success');
-                        this.selectedTiles.clear();
+                        this.showMessage('Turn completed!', 'success');
+                        this.pendingTiles = [];
                         this.refreshGame();
                     } else {
                         this.showMessage(result.message, 'error');
                     }
 
                 } catch (error) {
-                    console.error('Error placing tiles:', error);
-                    this.showMessage(`Failed to place tiles: ${error.message}`, 'error');
+                    console.error('Error completing turn:', error);
+                    this.showMessage(`Failed to complete turn: ${error.message}`, 'error');
                 }
             }
 
-            isValidCombination(tiles) {
-                if (tiles.length < 3) return false;
+            resetBoard() {
+                if (this.pendingTiles.length === 0) {
+                    this.showMessage('No changes to reset!', 'warning');
+                    return;
+                }
 
-                // Check for valid group (same number, different colors)
-                if (this.isValidGroup(tiles)) return true;
-
-                // Check for valid run (consecutive numbers, same color)
-                if (this.isValidRun(tiles)) return true;
-
-                return false;
+                // Clear all pending tiles
+                this.pendingTiles = [];
+                
+                // Show all hand tiles again
+                const handTiles = document.querySelectorAll('#hand-tiles .tile');
+                handTiles.forEach(tileEl => {
+                    tileEl.style.display = '';
+                });
+                
+                this.updateBoard();
+                this.updateButtonStates();
+                this.showMessage('Board reset!', 'success');
             }
 
-            isValidGroup(tiles) {
-                if (tiles.length > 4) return false;
+            async refreshGame() {
+                if (!this.gameId || !this.sessionId) {
+                    this.showMessage('No active game session', 'error');
+                    return;
+                }
 
-                const numbers = new Set();
-                const colors = new Set();
+                try {
+                    const response = await fetch(
+                        `${this.baseUrl}/game/${this.gameId}`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${this.sessionId}`
+                            }
+                        }
+                    );
 
-                for (const tile of tiles) {
-                    if (!tile.is_joker) {
-                        numbers.add(tile.number);
-                        colors.add(tile.color);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
-                }
 
-                // All non-joker tiles should have same number and different colors
-                return numbers.size <= 1 && colors.size === tiles.filter(t => !t.is_joker).length;
+                    this.gameState = await response.json();
+                    this.updateGameUI();
+
+                } catch (error) {
+                    console.error('Error refreshing game:', error);
+                    this.showMessage(`Failed to refresh game: ${error.message}`, 'error');
+                }
             }
 
-            isValidRun(tiles) {
-                const colors = new Set();
-                const numbers = [];
-
-                for (const tile of tiles) {
-                    if (!tile.is_joker) {
-                        colors.add(tile.color);
-                        numbers.push(tile.number);
-                    }
-                }
-
-                // All non-joker tiles should have same color
-                if (colors.size > 1) return false;
-
-                if (numbers.length === 0) return true; // All jokers
-
-                numbers.sort((a, b) => a - b);
-
-                // Check if numbers can form a consecutive sequence
-                const minNum = numbers[0];
-                const maxNum = numbers[numbers.length - 1];
-                const expectedLength = maxNum - minNum + 1;
-
-                return expectedLength <= tiles.length && expectedLength >= 3;
-            }
         }
 
         // Initialize the game when the page loads
