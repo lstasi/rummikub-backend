@@ -33,16 +33,10 @@ class GameService:
         """Generate a random 6-character invite code."""
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
-    def create_game(self, max_players: int = 4) -> Game:
+    def create_game(self, max_players: int = 4, creator_name: str = "Admin") -> Game:
         """Create a new game."""
-        invite_code = self.generate_invite_code()
-        
-        # Ensure unique invite code
-        while any(game.invite_code == invite_code for game in self.games.values()):
-            invite_code = self.generate_invite_code()
-        
         game = Game(
-            invite_code=invite_code,
+            invite_code="",  # No longer used but keeping for compatibility
             tile_pool=self.create_tile_pool(),
             max_players=max_players
         )
@@ -57,14 +51,14 @@ class GameService:
                 return game
         return None
 
-    def join_game(self, invite_code: str, player_name: str) -> tuple[Optional[Game], Optional[str], str]:
+    def join_game_by_id(self, game_id: str, player_name: str) -> tuple[Optional[Game], Optional[Player], str]:
         """
-        Join a game with invite code and player name.
-        Returns (game, session_id, message)
+        Join a game by game ID and player name.
+        Returns (game, player, message)
         """
-        game = self.find_game_by_invite_code(invite_code)
+        game = self.games.get(game_id)
         if not game:
-            return None, None, "Invalid invite code"
+            return None, None, "Game not found"
         
         if game.status != GameStatus.WAITING:
             return None, None, "Game is not accepting new players"
@@ -88,21 +82,13 @@ class GameService:
         
         game.players.append(player)
         
-        # Generate session ID
-        session_id = self._generate_session_id()
-        player.session_id = session_id
-        self.sessions[session_id] = {
-            "game_id": game.id,
-            "player_id": player.id
-        }
-        
         # Start game if we have at least 2 players
         if len(game.players) >= 2:
             game.status = GameStatus.IN_PROGRESS
             for p in game.players:
                 p.status = PlayerStatus.PLAYING
         
-        return game, session_id, "Successfully joined game"
+        return game, player, "Successfully joined game"
 
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
@@ -111,20 +97,13 @@ class GameService:
             session_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
         return session_id
 
-    def get_game_state(self, game_id: str, session_id: str) -> Optional[GameState]:
-        """Get game state for a specific player."""
-        if session_id not in self.sessions:
-            return None
-        
-        session_info = self.sessions[session_id]
-        if session_info["game_id"] != game_id:
-            return None
-        
+    def get_game_state_by_player(self, game_id: str, player_id: str) -> Optional[GameState]:
+        """Get game state for a specific player by player ID."""
         game = self.games.get(game_id)
         if not game:
             return None
         
-        player = self._get_player_by_id(game, session_info["player_id"])
+        player = self._get_player_by_id(game, player_id)
         if not player:
             return None
         
@@ -155,20 +134,13 @@ class GameService:
                 return player
         return None
 
-    def perform_action(self, game_id: str, session_id: str, action: GameAction) -> ActionResponse:
-        """Perform a game action."""
-        if session_id not in self.sessions:
-            return ActionResponse(success=False, message="Invalid session")
-        
-        session_info = self.sessions[session_id]
-        if session_info["game_id"] != game_id:
-            return ActionResponse(success=False, message="Session does not match game")
-        
+    def perform_action_by_player(self, game_id: str, player_id: str, action: GameAction) -> ActionResponse:
+        """Perform a game action by player ID."""
         game = self.games.get(game_id)
         if not game:
             return ActionResponse(success=False, message="Game not found")
         
-        player = self._get_player_by_id(game, session_info["player_id"])
+        player = self._get_player_by_id(game, player_id)
         if not player:
             return ActionResponse(success=False, message="Player not found")
         
@@ -230,7 +202,7 @@ class GameService:
         else:
             game.next_turn()
         
-        game_state = self.get_game_state(game.id, player.session_id)
+        game_state = self.get_game_state_by_player(game.id, player.id)
         return ActionResponse(
             success=True, 
             message="Tiles placed successfully",
@@ -249,7 +221,7 @@ class GameService:
         # End turn
         game.next_turn()
         
-        game_state = self.get_game_state(game.id, player.session_id)
+        game_state = self.get_game_state_by_player(game.id, player.id)
         return ActionResponse(
             success=True,
             message="Tile drawn successfully",
