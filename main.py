@@ -1,8 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import FastAPI, HTTPException, Depends, status, Header
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
 from typing import Optional
 import secrets
+import jwt
+from datetime import datetime, timedelta
 import os
+
 from models import (
     CreateGameRequest, JoinGameRequest, GameAction, 
     ActionResponse, GameState, Game
@@ -53,12 +56,14 @@ All other game operations use session-based authentication with session IDs.
     ]
 )
 security = HTTPBasic()
+bearer_security = HTTPBearer()
 game_service = GameService()
 
 # Hard-coded credentials for game creation
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "rummikub2024")
-
+JWT_SECRET = "rummikub-jwt-secret-2024"
+JWT_ALGORITHM = "HS256"
 
 def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     """Verify admin credentials for game creation."""
@@ -72,6 +77,42 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
             headers={"WWW-Authenticate": "Basic"},
         )
     return credentials
+
+
+def create_access_token(game_id: str, player_id: str, player_name: str) -> str:
+    """Create a JWT access token for a player."""
+    payload = {
+        "game_id": game_id,
+        "player_id": player_id,
+        "player_name": player_name,
+        "exp": datetime.utcnow() + timedelta(hours=24),
+        "iat": datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def verify_token(authorization: str = Header(...)):
+    """Verify and decode JWT token from Authorization header."""
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format. Expected 'Bearer <token>'"
+        )
+    
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
 
 
 @app.get("/", tags=["general"])
@@ -97,17 +138,17 @@ async def create_game(
     """
     Create a new game. Requires authentication.
     
-    Returns game ID and invite code that players can use to join the game.
+    Returns game ID that players can use to join the game.
     The game will be in 'waiting' status until players join.
     
     **Authentication Required**: Basic Auth (admin:rummikub2024)
     """
-    game = game_service.create_game(request.max_players)
+    game = game_service.create_game(request.max_players, request.name)
     
     return {
         "game_id": game.id,
-        "invite_code": game.invite_code,
         "max_players": game.max_players,
+        "creator_name": request.name,
         "status": game.status,
         "message": "Game created successfully"
     }
@@ -116,51 +157,51 @@ async def create_game(
 @app.post("/game/{game_id}/join", tags=["game-play"])
 async def join_game(game_id: str, request: JoinGameRequest):
     """
-    Join a game using invite code and player name.
+    Join a game using game ID and player name.
     
-    Returns session ID for subsequent requests. The session ID must be used
-    in all future API calls to identify the player.
+    Returns access token for subsequent requests. The access token must be used
+    in all future API calls as a Bearer token in the Authorization header.
     
     The game will automatically start when 2 or more players have joined.
     """
-    game, session_id, message = game_service.join_game(
-        request.invite_code, 
+    if request.game_id != game_id:
+        raise HTTPException(status_code=400, detail="Game ID in URL does not match request body")
+    
+    game, player, message = game_service.join_game_by_id(
+        game_id, 
         request.player_name
     )
     
     if not game:
         raise HTTPException(status_code=400, detail=message)
     
-    if game.id != game_id:
-        raise HTTPException(status_code=400, detail="Game ID does not match invite code")
+    # Create JWT token
+    access_token = create_access_token(game.id, player.id, player.name)
     
     return {
-        "session_id": session_id,
+        "access_token": access_token,
+        "token_type": "bearer",
         "game_id": game.id,
+        "player_name": player.name,
         "message": message,
-        "game_state": game_service.get_game_state(game.id, session_id)
+        "game_state": game_service.get_game_state_by_player(game.id, player.id)
     }
 
 
 @app.get("/game/{game_id}", tags=["game-play"])
-async def get_game_state(game_id: str, session_id: str):
+async def get_game_state(game_id: str, token_data: dict = Depends(verify_token)):
     """
-    Get current game state. Requires session ID.
+    Get current game state. Requires Bearer token.
     
     Returns game state with only the requesting player's tiles visible.
     Other players' tiles counts are shown but not the actual tiles.
     
-    **Authentication Required**: Session ID (obtained from joining a game)
+    **Authentication Required**: Bearer token (obtained from joining a game)
     """
-    # Validate session
-    session_info = game_service.validate_session(session_id)
-    if not session_info:
-        raise HTTPException(status_code=401, detail="Invalid session")
+    if token_data["game_id"] != game_id:
+        raise HTTPException(status_code=400, detail="Token does not match game")
     
-    if session_info["game_id"] != game_id:
-        raise HTTPException(status_code=400, detail="Session does not match game")
-    
-    game_state = game_service.get_game_state(game_id, session_id)
+    game_state = game_service.get_game_state_by_player(game_id, token_data["player_id"])
     if not game_state:
         raise HTTPException(status_code=404, detail="Game not found")
     
@@ -168,25 +209,23 @@ async def get_game_state(game_id: str, session_id: str):
 
 
 @app.post("/game/{game_id}/action", tags=["game-play"])
-async def perform_action(game_id: str, session_id: str, action: GameAction):
+async def perform_action(game_id: str, action: GameAction, token_data: dict = Depends(verify_token)):
     """
-    Perform a game action. Requires session ID.
+    Perform a game action. Requires Bearer token.
     
     **Available Actions:**
     - `place_tiles`: Place tiles from your hand onto the board in new combinations
     - `draw_tile`: Draw a tile from the pool (ends your turn)
     - `rearrange`: Rearrange existing combinations on the board (coming soon)
     
-    **Authentication Required**: Session ID (obtained from joining a game)
+    **Authentication Required**: Bearer token (obtained from joining a game)
     
     **Note**: You can only perform actions during your turn.
     """
-    # Validate session
-    session_info = game_service.validate_session(session_id)
-    if not session_info:
-        raise HTTPException(status_code=401, detail="Invalid session")
+    if token_data["game_id"] != game_id:
+        raise HTTPException(status_code=400, detail="Token does not match game")
     
-    result = game_service.perform_action(game_id, session_id, action)
+    result = game_service.perform_action_by_player(game_id, token_data["player_id"], action)
     
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)

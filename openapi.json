@@ -9,8 +9,16 @@
             "minimum": 2.0,
             "title": "Max Players",
             "type": "integer"
+          },
+          "name": {
+            "description": "Name of the game creator/admin",
+            "title": "Name",
+            "type": "string"
           }
         },
+        "required": [
+          "name"
+        ],
         "title": "CreateGameRequest",
         "type": "object"
       },
@@ -84,8 +92,8 @@
       },
       "JoinGameRequest": {
         "properties": {
-          "invite_code": {
-            "title": "Invite Code",
+          "game_id": {
+            "title": "Game Id",
             "type": "string"
           },
           "player_name": {
@@ -94,7 +102,7 @@
           }
         },
         "required": [
-          "invite_code",
+          "game_id",
           "player_name"
         ],
         "title": "JoinGameRequest",
@@ -177,7 +185,7 @@
     },
     "/game": {
       "post": {
-        "description": "Create a new game. Requires authentication.\n\nReturns game ID and invite code that players can use to join the game.\nThe game will be in 'waiting' status until players join.\n\n**Authentication Required**: Basic Auth (admin:rummikub2024)",
+        "description": "Create a new game. Requires authentication.\n\nReturns game ID that players can use to join the game.\nThe game will be in 'waiting' status until players join.\n\n**Authentication Required**: Basic Auth (admin:rummikub2024)",
         "operationId": "create_game_game_post",
         "requestBody": {
           "content": {
@@ -222,7 +230,7 @@
     },
     "/game/{game_id}": {
       "get": {
-        "description": "Get current game state. Requires session ID.\n\nReturns game state with only the requesting player's tiles visible.\nOther players' tiles counts are shown but not the actual tiles.\n\n**Authentication Required**: Session ID (obtained from joining a game)",
+        "description": "Get current game state. Requires Bearer token.\n\nReturns game state with only the requesting player's tiles visible.\nOther players' tiles counts are shown but not the actual tiles.\n\n**Authentication Required**: Bearer token (obtained from joining a game)",
         "operationId": "get_game_state_game__game_id__get",
         "parameters": [
           {
@@ -235,11 +243,11 @@
             }
           },
           {
-            "in": "query",
-            "name": "session_id",
+            "in": "header",
+            "name": "authorization",
             "required": true,
             "schema": {
-              "title": "Session Id",
+              "title": "Authorization",
               "type": "string"
             }
           }
@@ -272,7 +280,7 @@
     },
     "/game/{game_id}/action": {
       "post": {
-        "description": "Perform a game action. Requires session ID.\n\n**Available Actions:**\n- `place_tiles`: Place tiles from your hand onto the board in new combinations\n- `draw_tile`: Draw a tile from the pool (ends your turn)\n- `rearrange`: Rearrange existing combinations on the board (coming soon)\n\n**Authentication Required**: Session ID (obtained from joining a game)\n\n**Note**: You can only perform actions during your turn.",
+        "description": "Perform a game action. Requires Bearer token.\n\n**Available Actions:**\n- `place_tiles`: Place tiles from your hand onto the board in new combinations\n- `draw_tile`: Draw a tile from the pool (ends your turn)\n- `rearrange`: Rearrange existing combinations on the board (coming soon)\n\n**Authentication Required**: Bearer token (obtained from joining a game)\n\n**Note**: You can only perform actions during your turn.",
         "operationId": "perform_action_game__game_id__action_post",
         "parameters": [
           {
@@ -285,11 +293,11 @@
             }
           },
           {
-            "in": "query",
-            "name": "session_id",
+            "in": "header",
+            "name": "authorization",
             "required": true,
             "schema": {
-              "title": "Session Id",
+              "title": "Authorization",
               "type": "string"
             }
           }
@@ -373,7 +381,7 @@
     },
     "/game/{game_id}/join": {
       "post": {
-        "description": "Join a game using invite code and player name.\n\nReturns session ID for subsequent requests. The session ID must be used\nin all future API calls to identify the player.\n\nThe game will automatically start when 2 or more players have joined.",
+        "description": "Join a game using game ID and player name.\n\nReturns access token for subsequent requests. The access token must be used\nin all future API calls as a Bearer token in the Authorization header.\n\nThe game will automatically start when 2 or more players have joined.",
         "operationId": "join_game_game__game_id__join_post",
         "parameters": [
           {

@@ -151,12 +151,13 @@ class GameState(BaseModel):
 
 
 class JoinGameRequest(BaseModel):
-    invite_code: str
+    game_id: str
     player_name: str
 
 
 class CreateGameRequest(BaseModel):
     max_players: int = Field(default=4, ge=2, le=4)
+    name: str = Field(description="Name of the game creator/admin")
 
 
 class GameAction(BaseModel):

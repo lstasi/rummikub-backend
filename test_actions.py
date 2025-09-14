@@ -25,29 +25,29 @@ def test_game_actions():
     
     # Create game
     auth_headers = create_auth_header()
-    game_data = {"max_players": 2}
+    game_data = {"max_players": 2, "name": "ActionTestCreator"}
     response = requests.post(f"{BASE_URL}/game", json=game_data, headers=auth_headers)
     game_info = response.json()
     game_id = game_info["game_id"]
-    invite_code = game_info["invite_code"]
-    print(f"✅ Created game: {invite_code}")
+    print(f"✅ Created game: {game_id}")
     
     # Join game with first player
-    join_data = {"invite_code": invite_code, "player_name": "Player1"}
+    join_data = {"game_id": game_id, "player_name": "Player1"}
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
     player1_info = response.json()
-    session1 = player1_info["session_id"]
+    token1 = player1_info["access_token"]
     print(f"✅ Player1 joined")
     
     # Join game with second player  
-    join_data = {"invite_code": invite_code, "player_name": "Player2"}
+    join_data = {"game_id": game_id, "player_name": "Player2"}
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
     player2_info = response.json()
-    session2 = player2_info["session_id"]
+    token2 = player2_info["access_token"]
     print(f"✅ Player2 joined - Game should now be in progress")
     
     # Get game state for player 1
-    response = requests.get(f"{BASE_URL}/game/{game_id}?session_id={session1}")
+    headers1 = {"Authorization": f"Bearer {token1}"}
+    response = requests.get(f"{BASE_URL}/game/{game_id}", headers=headers1)
     game_state = response.json()
     print(f"Game status: {game_state['status']}")
     print(f"Current player: {game_state['current_player']}")
@@ -59,8 +59,9 @@ def test_game_actions():
         print("\n🎯 Testing draw tile action...")
         action_data = {"action_type": "draw_tile"}
         response = requests.post(
-            f"{BASE_URL}/game/{game_id}/action?session_id={session1}",
-            json=action_data
+            f"{BASE_URL}/game/{game_id}/action",
+            json=action_data,
+            headers=headers1
         )
         print(f"Draw tile status: {response.status_code}")
         if response.status_code == 200:
@@ -71,7 +72,8 @@ def test_game_actions():
             print(f"❌ Draw failed: {response.json()}")
     
     # Get updated game state
-    response = requests.get(f"{BASE_URL}/game/{game_id}?session_id={session2}")
+    headers2 = {"Authorization": f"Bearer {token2}"}
+    response = requests.get(f"{BASE_URL}/game/{game_id}", headers=headers2)
     game_state = response.json()
     print(f"\nAfter Player1's turn:")
     print(f"Current player: {game_state['current_player']}")
@@ -81,8 +83,9 @@ def test_game_actions():
     print("\n🚫 Testing invalid action (wrong turn)...")
     action_data = {"action_type": "draw_tile"}
     response = requests.post(
-        f"{BASE_URL}/game/{game_id}/action?session_id={session1}",
-        json=action_data
+        f"{BASE_URL}/game/{game_id}/action",
+        json=action_data,
+        headers=headers1
     )
     print(f"Status: {response.status_code}")
     if response.status_code != 200:
