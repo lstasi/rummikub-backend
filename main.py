@@ -174,9 +174,6 @@ async def join_game(game_id: str, request: JoinGameRequest):
     
     The game will automatically start when 2 or more players have joined.
     """
-    if request.invite_code != game_id:
-        raise HTTPException(status_code=400, detail="Game ID in URL does not match request body")
-    
     game, player, message = game_service.join_game_by_id(
         game_id, 
         request.player_name

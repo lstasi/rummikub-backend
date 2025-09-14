@@ -151,7 +151,6 @@ class GameState(BaseModel):
 
 
 class JoinGameRequest(BaseModel):
-    invite_code: str
     player_name: str
 
 

@@ -92,17 +92,12 @@
       },
       "JoinGameRequest": {
         "properties": {
-          "game_id": {
-            "title": "Game Id",
-            "type": "string"
-          },
           "player_name": {
             "title": "Player Name",
             "type": "string"
           }
         },
         "required": [
-          "game_id",
           "player_name"
         ],
         "title": "JoinGameRequest",
@@ -165,13 +160,15 @@
   "paths": {
     "/": {
       "get": {
-        "description": "Root endpoint with basic API information.",
+        "description": "Serve the main web interface.",
         "operationId": "root__get",
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
             "description": "Successful Response"
