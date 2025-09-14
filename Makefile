@@ -1,39 +1,28 @@
-.PHONY: all copy-static clean help
+.PHONY: all clean help test
 
 # Default target
-all: copy-static
+all: test
 
-# Copy web files to static directory
-copy-static:
-	@echo "Copying web files to static directory..."
-	@mkdir -p static
-	@cp web/index.html static/ 2>/dev/null || echo "Warning: web/index.html not found"
-	@cp web/rules.html static/ 2>/dev/null || echo "Warning: web/rules.html not found"
-	@echo "✅ Static files updated"
-
-# Clean static directory
+# Clean static directory and temporary files
 clean:
-	@echo "Cleaning static directory..."
-	@rm -rf static/
-	@echo "✅ Static directory cleaned"
+	@echo "Cleaning build artifacts..."
+	@rm -rf __pycache__/
+	@rm -rf tests/__pycache__/
+	@echo "✅ Build artifacts cleaned"
 
-# Initialize submodules (useful for CI/CD)
-init-submodules:
-	@echo "Initializing git submodules..."
-	@git submodule init
-	@git submodule update
-	@echo "✅ Submodules initialized"
-
-# Full setup (submodules + static files)
-setup: init-submodules copy-static
-	@echo "✅ Full setup complete"
+# Run tests
+test:
+	@echo "Running tests..."
+	@python -m py_compile *.py tests/*.py
+	@cd tests && python test_api.py
+	@cd tests && python test_actions.py
+	@cd tests && python test_openapi.py
+	@echo "✅ All tests completed"
 
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  all           - Copy static files (default)"
-	@echo "  copy-static   - Copy web files to static directory"
-	@echo "  clean         - Remove static directory"
-	@echo "  init-submodules - Initialize git submodules"
-	@echo "  setup         - Full setup (submodules + static files)"
+	@echo "  all           - Run tests (default)"
+	@echo "  clean         - Remove build artifacts"
+	@echo "  test          - Run all tests and validation"
 	@echo "  help          - Show this help message"

@@ -7,12 +7,6 @@ RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host pypi.pytho
 
 COPY . .
 
-# Install make utility for build process
-RUN apt-get update && apt-get install -y make
-
-# Build static files from web submodule
-RUN make copy-static
-
 EXPOSE 8090
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090", "--log-level", "debug"]
