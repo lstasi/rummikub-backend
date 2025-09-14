@@ -7,8 +7,8 @@ RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host pypi.pytho
 
 COPY . .
 
-# Ensure web interface is available
-RUN mkdir -p static && cp web/index.html static/ && cp web/rules.html static/ 2>/dev/null || echo "Web submodule not available, using fallback"
+# Build static files from web submodule
+RUN make copy-static
 
 EXPOSE 8090
 

@@ -418,6 +418,13 @@
                 </select>
             </div>
 
+            <div id="player-names-section">
+                <h3>Player Names:</h3>
+                <div id="player-names-container">
+                    <!-- Player name inputs will be added here dynamically -->
+                </div>
+            </div>
+
             <div class="actions">
                 <button id="create-configured-game-btn">Create Game</button>
                 <button id="cancel-config-btn">Back</button>
@@ -514,6 +521,7 @@
                 this.gameState = null;
                 this.selectedTiles = new Set();
                 this.draggedTile = null;
+                this.playerNames = ['Player 1', 'Player 2', 'Player 3', 'Player 4'];
                 
                 this.initializeElements();
                 this.attachEventListeners();
@@ -542,6 +550,7 @@
                 // Config screen elements
                 this.configScreen = document.getElementById('config-screen');
                 this.maxPlayersSelect = document.getElementById('max-players');
+                this.playerNamesContainer = document.getElementById('player-names-container');
                 this.createConfiguredGameBtn = document.getElementById('create-configured-game-btn');
                 this.cancelConfigBtn = document.getElementById('cancel-config-btn');
                 this.configMessage = document.getElementById('config-message');
@@ -584,6 +593,7 @@
                 // Config screen listeners
                 this.createConfiguredGameBtn.addEventListener('click', () => this.createGame());
                 this.cancelConfigBtn.addEventListener('click', () => this.showSetupScreen());
+                this.maxPlayersSelect.addEventListener('change', () => this.updatePlayerNameInputs());
 
                 // Links screen listeners
                 this.joinCreatedGameBtn.addEventListener('click', () => this.joinCreatedGame());
@@ -702,10 +712,6 @@
             }
 
             showLoginScreen() {
-                if (!this.playerNameInput.value.trim()) {
-                    this.showMessage('Please enter your name first', 'error');
-                    return;
-                }
                 this.hideAllScreens();
                 this.loginScreen.classList.remove('hidden');
                 this.adminPasswordInput.focus();
@@ -713,7 +719,26 @@
 
             showConfigScreen() {
                 this.hideAllScreens();
+                this.updatePlayerNameInputs();
                 this.configScreen.classList.remove('hidden');
+            }
+
+            updatePlayerNameInputs() {
+                const maxPlayers = parseInt(this.maxPlayersSelect.value);
+                const container = this.playerNamesContainer;
+                container.innerHTML = '';
+
+                for (let i = 0; i < maxPlayers; i++) {
+                    const formGroup = document.createElement('div');
+                    formGroup.className = 'form-group';
+                    formGroup.innerHTML = `
+                        <label for="player-name-${i}">Player ${i + 1} Name:</label>
+                        <input type="text" id="player-name-${i}" 
+                               value="${this.playerNames[i] || `Player ${i + 1}`}" 
+                               maxlength="20" style="width: 100%; max-width: 300px; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px;">
+                    `;
+                    container.appendChild(formGroup);
+                }
             }
 
             showLinksScreen(gameId) {
@@ -740,19 +765,27 @@
                 const baseUrl = window.location.origin + window.location.pathname;
                 this.playerLinks.innerHTML = '';
                 
-                for (let i = 1; i <= this.maxPlayersSelect.value; i++) {
-                    const link = `${baseUrl}?name=Player${i}&gameId=${gameId}`;
+                // Collect player names from the inputs
+                const maxPlayers = parseInt(this.maxPlayersSelect.value);
+                const playerNames = [];
+                for (let i = 0; i < maxPlayers; i++) {
+                    const input = document.getElementById(`player-name-${i}`);
+                    playerNames.push(input ? input.value.trim() || `Player ${i + 1}` : `Player ${i + 1}`);
+                }
+                
+                playerNames.forEach((name, index) => {
+                    const link = `${baseUrl}?name=${encodeURIComponent(name)}&gameId=${gameId}`;
                     const linkDiv = document.createElement('div');
                     linkDiv.style.marginBottom = '10px';
                     linkDiv.innerHTML = `
-                        <strong>Player ${i}:</strong><br>
+                        <strong>${name}:</strong><br>
                         <input type="text" readonly value="${link}" 
                                style="width: 100%; padding: 8px; margin-top: 5px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;"
                                onclick="this.select(); document.execCommand('copy');" 
                                title="Click to copy">
                     `;
                     this.playerLinks.appendChild(linkDiv);
-                }
+                });
             }
 
             async authenticateAdmin() {
@@ -783,11 +816,12 @@
 
             async createGame() {
                 const maxPlayers = parseInt(this.maxPlayersSelect.value);
-                this.playerName = this.playerNameInput.value.trim();
-
-                if (!this.playerName) {
-                    this.showMessage('Please enter your name', 'error');
-                    return;
+                
+                // Collect player names
+                this.playerNames = [];
+                for (let i = 0; i < maxPlayers; i++) {
+                    const input = document.getElementById(`player-name-${i}`);
+                    this.playerNames.push(input ? input.value.trim() || `Player ${i + 1}` : `Player ${i + 1}`);
                 }
 
                 try {
@@ -800,7 +834,7 @@
                             'Authorization': 'Basic ' + btoa('admin:rummikub2024')
                         },
                         body: JSON.stringify({ 
-                            name: this.playerName,
+                            name: 'Admin',  // Default name for API
                             max_players: maxPlayers
                         })
                     });
@@ -841,7 +875,7 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            game_id: gameId,
+                            invite_code: gameId,
                             player_name: this.playerName
                         })
                     });

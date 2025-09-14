@@ -68,12 +68,30 @@ python generate_openapi.py
    pip install -r requirements.txt
    ```
 
-2. **Run the server:**
+2. **Set up web interface:**
+   ```bash
+   make copy-static
+   ```
+   This copies the web interface files from the `web/` submodule to the `static/` directory.
+
+3. **Run the server:**
    ```bash
    python main.py
    ```
 
-3. **API will be available at:** `http://localhost:8090`
+4. **API will be available at:** `http://localhost:8090`
+
+### Makefile Targets
+
+The project includes a Makefile for common development tasks:
+
+```bash
+make help          # Show available targets
+make copy-static   # Copy web files to static directory
+make clean         # Clean static directory
+make init-submodules # Initialize git submodules
+make setup         # Full setup (submodules + static files)
+```
 
 ## Usage Example
 
@@ -159,6 +177,11 @@ rummikub-backend/
 ├── generate_openapi.py  # Script to generate OpenAPI specification
 ├── openapi.json         # OpenAPI 3.1.0 specification (generated)
 ├── requirements.txt     # Python dependencies
+├── Makefile            # Build automation for static files
+├── static/             # Static web files (copied from web/ submodule)
+│   ├── index.html      # Main web interface
+│   └── rules.html      # Game rules page
+├── web/                # Git submodule with web interface source
 ├── Dockerfile          # Docker container configuration
 ├── docker-compose.yml  # Docker compose for easy deployment
 ├── RUMMIKUB_RULES.md   # Complete game rules
