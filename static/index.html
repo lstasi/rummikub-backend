@@ -361,12 +361,6 @@
         <!-- Game Setup Screen -->
         <div id="setup-screen" class="game-setup">
             <h2>Join or Create Game</h2>
-            
-            <div class="form-group">
-                <label for="backend-url">Backend Server URL:</label>
-                <input type="url" id="backend-url" value="http://localhost:8090" 
-                       placeholder="http://localhost:8090">
-            </div>
 
             <div class="form-group">
                 <label for="player-name">Your Name:</label>
@@ -386,6 +380,77 @@
             </div>
 
             <div id="status-message" class="status-message hidden"></div>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="login-screen" class="game-setup hidden">
+            <h2>🔐 Login to Create Game</h2>
+            <p style="color: #666; margin-bottom: 20px;">Please provide administrator credentials to create a new game.</p>
+
+            <div class="form-group">
+                <label for="admin-username">Username:</label>
+                <input type="text" id="admin-username" placeholder="admin" value="admin">
+            </div>
+
+            <div class="form-group">
+                <label for="admin-password">Password:</label>
+                <input type="password" id="admin-password" placeholder="Enter password">
+            </div>
+
+            <div class="actions">
+                <button id="login-btn">Login</button>
+                <button id="cancel-login-btn">Cancel</button>
+            </div>
+
+            <div id="login-message" class="status-message hidden"></div>
+        </div>
+
+        <!-- Game Configuration Screen -->
+        <div id="config-screen" class="game-setup hidden">
+            <h2>🎮 Configure New Game</h2>
+            
+            <div class="form-group">
+                <label for="max-players">Number of Players (2-4):</label>
+                <select id="max-players" style="width: 100%; max-width: 300px; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px;">
+                    <option value="2">2 Players</option>
+                    <option value="3">3 Players</option>
+                    <option value="4" selected>4 Players</option>
+                </select>
+            </div>
+
+            <div class="actions">
+                <button id="create-configured-game-btn">Create Game</button>
+                <button id="cancel-config-btn">Back</button>
+            </div>
+
+            <div id="config-message" class="status-message hidden"></div>
+        </div>
+
+        <!-- Game Links Screen -->
+        <div id="links-screen" class="game-setup hidden">
+            <h2>🎲 Game Created Successfully!</h2>
+            <p style="color: #666; margin-bottom: 20px;">Share these links with other players to join the game:</p>
+
+            <div class="form-group">
+                <label>Game ID:</label>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 15px;">
+                    <span id="created-game-id"></span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Player Links:</label>
+                <div id="player-links" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <!-- Links will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="join-created-game-btn">Join This Game</button>
+                <button id="create-another-btn">Create Another Game</button>
+            </div>
+
+            <div id="links-message" class="status-message hidden"></div>
         </div>
 
         <!-- Game Board Screen -->
@@ -437,7 +502,12 @@
     <script>
         class RummikubGame {
             constructor() {
-                this.baseUrl = '';
+                // Automatically determine backend URL based on current host
+                const protocol = window.location.protocol;
+                const hostname = window.location.hostname;
+                const port = hostname === 'localhost' ? '8090' : '80';
+                this.baseUrl = `${protocol}//${hostname}:${port}`;
+                
                 this.gameId = '';
                 this.sessionId = '';
                 this.playerName = '';
@@ -447,6 +517,7 @@
                 
                 this.initializeElements();
                 this.attachEventListeners();
+                this.loadFromUrlParams();
                 this.loadFromStorage();
             }
 
@@ -454,12 +525,34 @@
                 // Setup screen elements
                 this.setupScreen = document.getElementById('setup-screen');
                 this.gameScreen = document.getElementById('game-screen');
-                this.backendUrlInput = document.getElementById('backend-url');
                 this.playerNameInput = document.getElementById('player-name');
                 this.inviteCodeInput = document.getElementById('invite-code');
                 this.joinGameBtn = document.getElementById('join-game-btn');
                 this.createGameBtn = document.getElementById('create-game-btn');
                 this.statusMessage = document.getElementById('status-message');
+
+                // Login screen elements
+                this.loginScreen = document.getElementById('login-screen');
+                this.adminUsernameInput = document.getElementById('admin-username');
+                this.adminPasswordInput = document.getElementById('admin-password');
+                this.loginBtn = document.getElementById('login-btn');
+                this.cancelLoginBtn = document.getElementById('cancel-login-btn');
+                this.loginMessage = document.getElementById('login-message');
+
+                // Config screen elements
+                this.configScreen = document.getElementById('config-screen');
+                this.maxPlayersSelect = document.getElementById('max-players');
+                this.createConfiguredGameBtn = document.getElementById('create-configured-game-btn');
+                this.cancelConfigBtn = document.getElementById('cancel-config-btn');
+                this.configMessage = document.getElementById('config-message');
+
+                // Links screen elements
+                this.linksScreen = document.getElementById('links-screen');
+                this.createdGameId = document.getElementById('created-game-id');
+                this.playerLinks = document.getElementById('player-links');
+                this.joinCreatedGameBtn = document.getElementById('join-created-game-btn');
+                this.createAnotherBtn = document.getElementById('create-another-btn');
+                this.linksMessage = document.getElementById('links-message');
 
                 // Game screen elements
                 this.gameStatus = document.getElementById('game-status');
@@ -479,10 +572,22 @@
 
             attachEventListeners() {
                 this.joinGameBtn.addEventListener('click', () => this.joinGame());
-                this.createGameBtn.addEventListener('click', () => this.createGame());
+                this.createGameBtn.addEventListener('click', () => this.showLoginScreen());
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
                 this.placeTilesBtn.addEventListener('click', () => this.placeTiles());
                 this.refreshBtn.addEventListener('click', () => this.refreshGame());
+
+                // Login screen listeners
+                this.loginBtn.addEventListener('click', () => this.authenticateAdmin());
+                this.cancelLoginBtn.addEventListener('click', () => this.showSetupScreen());
+
+                // Config screen listeners
+                this.createConfiguredGameBtn.addEventListener('click', () => this.createGame());
+                this.cancelConfigBtn.addEventListener('click', () => this.showSetupScreen());
+
+                // Links screen listeners
+                this.joinCreatedGameBtn.addEventListener('click', () => this.joinCreatedGame());
+                this.createAnotherBtn.addEventListener('click', () => this.showSetupScreen());
 
                 // Auto-uppercase invite code
                 this.inviteCodeInput.addEventListener('input', (e) => {
@@ -506,6 +611,8 @@
                     if (e.key === 'Enter') {
                         if (!this.gameScreen.classList.contains('hidden')) {
                             this.refreshGame();
+                        } else if (!this.loginScreen.classList.contains('hidden')) {
+                            this.authenticateAdmin();
                         } else if (this.playerNameInput.value && this.inviteCodeInput.value) {
                             this.joinGame();
                         }
@@ -513,18 +620,38 @@
                 });
             }
 
+            loadFromUrlParams() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const nameParam = urlParams.get('name');
+                const gameIdParam = urlParams.get('gameId') || urlParams.get('game') || urlParams.get('id');
+                
+                if (nameParam) {
+                    this.playerNameInput.value = nameParam;
+                    this.playerName = nameParam;
+                }
+                
+                if (gameIdParam) {
+                    this.inviteCodeInput.value = gameIdParam.toUpperCase();
+                }
+                
+                // If both parameters are present, automatically join the game
+                if (nameParam && gameIdParam) {
+                    setTimeout(() => this.joinGame(), 500);
+                }
+            }
+
             loadFromStorage() {
                 const saved = localStorage.getItem('rummikub-game');
                 if (saved) {
                     try {
                         const data = JSON.parse(saved);
-                        this.baseUrl = data.baseUrl || '';
                         this.gameId = data.gameId || '';
                         this.sessionId = data.sessionId || '';
                         this.playerName = data.playerName || '';
                         
-                        if (this.baseUrl) this.backendUrlInput.value = this.baseUrl;
-                        if (this.playerName) this.playerNameInput.value = this.playerName;
+                        if (this.playerName && !this.playerNameInput.value) {
+                            this.playerNameInput.value = this.playerName;
+                        }
                         
                         if (this.gameId && this.sessionId) {
                             this.showGame();
@@ -538,7 +665,6 @@
 
             saveToStorage() {
                 const data = {
-                    baseUrl: this.baseUrl,
                     gameId: this.gameId,
                     sessionId: this.sessionId,
                     playerName: this.playerName
@@ -547,8 +673,19 @@
             }
 
             showMessage(message, type = 'info') {
-                const messageEl = this.gameScreen.classList.contains('hidden') ? 
-                    this.statusMessage : this.gameMessage;
+                let messageEl = this.statusMessage; // default
+                
+                if (!this.setupScreen.classList.contains('hidden')) {
+                    messageEl = this.statusMessage;
+                } else if (!this.loginScreen.classList.contains('hidden')) {
+                    messageEl = this.loginMessage;
+                } else if (!this.configScreen.classList.contains('hidden')) {
+                    messageEl = this.configMessage;
+                } else if (!this.linksScreen.classList.contains('hidden')) {
+                    messageEl = this.linksMessage;
+                } else if (!this.gameScreen.classList.contains('hidden')) {
+                    messageEl = this.gameMessage;
+                }
                 
                 messageEl.textContent = message;
                 messageEl.className = `status-message status-${type}`;
@@ -559,12 +696,97 @@
                 }
             }
 
+            showSetupScreen() {
+                this.hideAllScreens();
+                this.setupScreen.classList.remove('hidden');
+            }
+
+            showLoginScreen() {
+                if (!this.playerNameInput.value.trim()) {
+                    this.showMessage('Please enter your name first', 'error');
+                    return;
+                }
+                this.hideAllScreens();
+                this.loginScreen.classList.remove('hidden');
+                this.adminPasswordInput.focus();
+            }
+
+            showConfigScreen() {
+                this.hideAllScreens();
+                this.configScreen.classList.remove('hidden');
+            }
+
+            showLinksScreen(gameId) {
+                this.hideAllScreens();
+                this.linksScreen.classList.remove('hidden');
+                this.createdGameId.textContent = gameId;
+                this.generatePlayerLinks(gameId);
+            }
+
+            showGame() {
+                this.hideAllScreens();
+                this.gameScreen.classList.remove('hidden');
+            }
+
+            hideAllScreens() {
+                this.setupScreen.classList.add('hidden');
+                this.loginScreen.classList.add('hidden');
+                this.configScreen.classList.add('hidden');
+                this.linksScreen.classList.add('hidden');
+                this.gameScreen.classList.add('hidden');
+            }
+
+            generatePlayerLinks(gameId) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                this.playerLinks.innerHTML = '';
+                
+                for (let i = 1; i <= this.maxPlayersSelect.value; i++) {
+                    const link = `${baseUrl}?name=Player${i}&gameId=${gameId}`;
+                    const linkDiv = document.createElement('div');
+                    linkDiv.style.marginBottom = '10px';
+                    linkDiv.innerHTML = `
+                        <strong>Player ${i}:</strong><br>
+                        <input type="text" readonly value="${link}" 
+                               style="width: 100%; padding: 8px; margin-top: 5px; font-size: 12px; border: 1px solid #ddd; border-radius: 4px;"
+                               onclick="this.select(); document.execCommand('copy');" 
+                               title="Click to copy">
+                    `;
+                    this.playerLinks.appendChild(linkDiv);
+                }
+            }
+
+            async authenticateAdmin() {
+                const username = this.adminUsernameInput.value.trim();
+                const password = this.adminPasswordInput.value.trim();
+
+                if (!username || !password) {
+                    this.showMessage('Please enter username and password', 'error');
+                    return;
+                }
+
+                // For now, just check hardcoded credentials
+                // In a real app, this would validate against the server
+                if (username === 'admin' && password === 'rummikub2024') {
+                    this.showMessage('Login successful!', 'success');
+                    setTimeout(() => this.showConfigScreen(), 1000);
+                } else {
+                    this.showMessage('Invalid credentials', 'error');
+                }
+            }
+
+            async joinCreatedGame() {
+                const gameId = this.createdGameId.textContent;
+                this.inviteCodeInput.value = gameId;
+                this.showSetupScreen();
+                setTimeout(() => this.joinGame(), 500);
+            }
+
             async createGame() {
-                this.baseUrl = this.backendUrlInput.value.replace(/\/$/, '');
+                const maxPlayers = parseInt(this.maxPlayersSelect.value);
                 this.playerName = this.playerNameInput.value.trim();
 
-                if (!this.baseUrl || !this.playerName) {
-                    this.showMessage('Please enter backend URL and your name', 'error');
+                if (!this.playerName) {
+                    this.showMessage('Please enter your name', 'error');
                     return;
                 }
 
@@ -579,7 +801,7 @@
                         },
                         body: JSON.stringify({ 
                             name: this.playerName,
-                            max_players: 4 
+                            max_players: maxPlayers
                         })
                     });
 
@@ -590,12 +812,10 @@
                     const data = await response.json();
                     this.gameId = data.game_id;
                     
-                    this.showMessage(`Game created! Game ID: ${data.game_id}`, 'success');
-                    // Store the game ID for joining
-                    this.inviteCodeInput.value = data.game_id;
-
-                    // Auto-join the game
-                    setTimeout(() => this.joinGame(), 1000);
+                    this.showMessage(`Game created successfully!`, 'success');
+                    
+                    // Show the links screen instead of auto-joining
+                    setTimeout(() => this.showLinksScreen(data.game_id), 1000);
 
                 } catch (error) {
                     console.error('Error creating game:', error);
@@ -604,11 +824,10 @@
             }
 
             async joinGame() {
-                this.baseUrl = this.backendUrlInput.value.replace(/\/$/, '');
                 this.playerName = this.playerNameInput.value.trim();
                 const gameId = this.inviteCodeInput.value.trim();
 
-                if (!this.baseUrl || !this.playerName || !gameId) {
+                if (!this.playerName || !gameId) {
                     this.showMessage('Please fill all fields', 'error');
                     return;
                 }
@@ -647,11 +866,6 @@
                     console.error('Error joining game:', error);
                     this.showMessage(`Failed to join game: ${error.message}`, 'error');
                 }
-            }
-
-            showGame() {
-                this.setupScreen.classList.add('hidden');
-                this.gameScreen.classList.remove('hidden');
             }
 
             async refreshGame() {
