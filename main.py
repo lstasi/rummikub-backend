@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from typing import Optional
 import secrets
+import os
 from models import (
     CreateGameRequest, JoinGameRequest, GameAction, 
     ActionResponse, GameState, Game
@@ -56,7 +57,7 @@ game_service = GameService()
 
 # Hard-coded credentials for game creation
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "rummikub2024"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "rummikub2024")
 
 
 def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security)):
