@@ -6,7 +6,6 @@ all: test
 # Clean static directory and temporary files
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf static/
 	@rm -rf __pycache__/
 	@rm -rf tests/__pycache__/
 	@echo "✅ Build artifacts cleaned"
