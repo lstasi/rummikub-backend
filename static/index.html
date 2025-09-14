@@ -512,7 +512,9 @@
                 // Automatically determine backend URL based on current host
                 const protocol = window.location.protocol;
                 const hostname = window.location.hostname;
-                const port = hostname === 'localhost' ? '8090' : '80';
+                // Use the current port, fallback to 8090 for localhost or 80 for others if no port specified
+                const currentPort = window.location.port;
+                const port = currentPort || (hostname === 'localhost' ? '8090' : '80');
                 this.baseUrl = `${protocol}//${hostname}:${port}`;
                 
                 this.gameId = '';
