@@ -7,7 +7,7 @@ import json
 import base64
 import time
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8090"
 ADMIN_USER = "admin"
 ADMIN_PASS = "rummikub2024"
 
@@ -98,6 +98,6 @@ if __name__ == "__main__":
     try:
         test_game_actions()
     except requests.exceptions.ConnectionError:
-        print("❌ Could not connect to API. Make sure the server is running on localhost:8000")
+        print("❌ Could not connect to API. Make sure the server is running on localhost:8090")
     except Exception as e:
         print(f"❌ Test failed with error: {e}")

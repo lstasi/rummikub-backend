@@ -11,7 +11,7 @@ import time
 import signal
 import sys
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8090"
 ADMIN_USER = "admin"
 DEFAULT_PASS = "rummikub2024"
 CUSTOM_PASS = "custom_test_password_123"

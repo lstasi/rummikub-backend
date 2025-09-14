@@ -7,7 +7,7 @@ import json
 import base64
 import time
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8090"
 ADMIN_USER = "admin"
 ADMIN_PASS = "rummikub2024"
 
@@ -27,7 +27,14 @@ def test_api():
     print("\n1. Testing root endpoint...")
     response = requests.get(f"{BASE_URL}/")
     print(f"Status: {response.status_code}")
-    print(f"Response: {response.json()}")
+    if response.status_code == 200:
+        # Check if response contains HTML (web interface)
+        if "Rummikub" in response.text and "<html" in response.text:
+            print("✅ Root endpoint serves web interface")
+        else:
+            print(f"Response: {response.text[:200]}...")
+    else:
+        print(f"❌ Root endpoint failed: {response.status_code}")
     
     # Test game creation (with auth and creator name)
     print("\n2. Testing game creation...")
@@ -98,6 +105,6 @@ if __name__ == "__main__":
     try:
         test_api()
     except requests.exceptions.ConnectionError:
-        print("❌ Could not connect to API. Make sure the server is running on localhost:8000")
+        print("❌ Could not connect to API. Make sure the server is running on localhost:8090")
     except Exception as e:
         print(f"❌ Test failed with error: {e}")
