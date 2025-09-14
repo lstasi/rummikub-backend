@@ -29,10 +29,10 @@ def test_api():
     print(f"Status: {response.status_code}")
     print(f"Response: {response.json()}")
     
-    # Test game creation (with auth)
+    # Test game creation (with auth and creator name)
     print("\n2. Testing game creation...")
     auth_headers = create_auth_header()
-    game_data = {"max_players": 4}
+    game_data = {"max_players": 4, "name": "TestCreator"}
     response = requests.post(
         f"{BASE_URL}/game", 
         json=game_data, 
@@ -47,13 +47,12 @@ def test_api():
         return
     
     game_id = game_info["game_id"]
-    invite_code = game_info["invite_code"]
-    print(f"✅ Game created with ID: {game_id}, Invite code: {invite_code}")
+    print(f"✅ Game created with ID: {game_id}")
     
     # Test joining game
     print("\n3. Testing game join...")
     join_data = {
-        "invite_code": invite_code,
+        "game_id": game_id,
         "player_name": "TestPlayer1"
     }
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
@@ -65,12 +64,13 @@ def test_api():
         print("❌ Failed to join game")
         return
     
-    session_id = join_info["session_id"]
-    print(f"✅ Player joined with session: {session_id}")
+    access_token = join_info["access_token"]
+    print(f"✅ Player joined with token")
     
     # Test game state
     print("\n4. Testing game state...")
-    response = requests.get(f"{BASE_URL}/game/{game_id}?session_id={session_id}")
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(f"{BASE_URL}/game/{game_id}", headers=headers)
     print(f"Status: {response.status_code}")
     if response.status_code == 200:
         game_state = response.json()
