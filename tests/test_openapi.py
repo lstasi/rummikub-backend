@@ -11,7 +11,8 @@ import sys
 def validate_openapi_file():
     """Validate the OpenAPI specification file."""
     
-    openapi_file = "openapi.json"
+    # Look for openapi.json in parent directory since we're in tests/
+    openapi_file = "../openapi.json"
     
     # Check if file exists
     if not os.path.exists(openapi_file):

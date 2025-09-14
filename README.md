@@ -68,29 +68,21 @@ python generate_openapi.py
    pip install -r requirements.txt
    ```
 
-2. **Set up web interface:**
-   ```bash
-   make copy-static
-   ```
-   This copies the web interface files from the `web/` submodule to the `static/` directory.
-
-3. **Run the server:**
+2. **Run the server:**
    ```bash
    python main.py
    ```
 
-4. **API will be available at:** `http://localhost:8090`
+3. **API will be available at:** `http://localhost:8090`
 
 ### Makefile Targets
 
-The project includes a Makefile for common development tasks:
+The project includes a Makefile for development tasks:
 
 ```bash
 make help          # Show available targets
-make copy-static   # Copy web files to static directory
-make clean         # Clean static directory
-make init-submodules # Initialize git submodules
-make setup         # Full setup (submodules + static files)
+make test          # Run all tests and validation
+make clean         # Clean build artifacts
 ```
 
 ## Usage Example
@@ -173,15 +165,18 @@ rummikub-backend/
 ├── main.py              # FastAPI application
 ├── models.py            # Pydantic models and data structures
 ├── game_service.py      # Game logic and business rules
-├── test_api.py         # API testing script
 ├── generate_openapi.py  # Script to generate OpenAPI specification
 ├── openapi.json         # OpenAPI 3.1.0 specification (generated)
 ├── requirements.txt     # Python dependencies
-├── Makefile            # Build automation for static files
-├── static/             # Static web files (copied from web/ submodule)
+├── Makefile            # Build automation and testing
+├── static/             # Static web files
 │   ├── index.html      # Main web interface
 │   └── rules.html      # Game rules page
-├── web/                # Git submodule with web interface source
+├── tests/              # Test files
+│   ├── test_api.py     # API testing script
+│   ├── test_actions.py # Game action tests
+│   ├── test_openapi.py # OpenAPI validation tests
+│   └── test_env_password.py # Environment password tests
 ├── Dockerfile          # Docker container configuration
 ├── docker-compose.yml  # Docker compose for easy deployment
 ├── RUMMIKUB_RULES.md   # Complete game rules
@@ -194,7 +189,7 @@ rummikub-backend/
 1. Update models in `models.py` if needed
 2. Implement logic in `game_service.py`
 3. Add API endpoints in `main.py`
-4. Test with `test_api.py`
+4. Test with scripts in `tests/` directory
 
 ### Contributing
 1. Fork the repository
