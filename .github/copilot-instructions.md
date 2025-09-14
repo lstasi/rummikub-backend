@@ -11,7 +11,7 @@ A Python FastAPI backend for playing Rummikub online with session-based authenti
   - `pip install -r requirements.txt` -- takes ~10 seconds. NEVER CANCEL.
 - **Start the server:**
   - `python main.py` -- starts immediately (~1-2 seconds)
-  - Server runs on `http://0.0.0.0:8000` (accessible via `http://localhost:8000`)
+  - Server runs on `http://0.0.0.0:8090` (accessible via `http://localhost:8090`)
 - **Stop the server:**
   - Press `Ctrl+C` in the terminal
 
@@ -53,22 +53,22 @@ Should test: game creation, 2 players joining, game starting, turn-based actions
 1. **Start server:** `python main.py` or `docker compose up`
 2. **Create game:** 
    ```bash
-   curl -X POST "http://localhost:8000/game" \
+   curl -X POST "http://localhost:8090/game" \
      -H "Content-Type: application/json" \
      -u "admin:rummikub2024" \
      -d '{"max_players": 4}'
    ```
 3. **Join game:** Use the returned invite_code in:
    ```bash
-   curl -X POST "http://localhost:8000/game/{game_id}/join" \
+   curl -X POST "http://localhost:8090/game/{game_id}/join" \
      -H "Content-Type: application/json" \
      -d '{"invite_code": "INVITE_CODE", "player_name": "TestPlayer"}'
    ```
 4. **Test game state:** Use session_id from join response:
    ```bash
-   curl "http://localhost:8000/game/{game_id}?session_id={session_id}"
+   curl "http://localhost:8090/game/{game_id}?session_id={session_id}"
    ```
-5. **Verify documentation:** Visit `http://localhost:8000/docs` for Swagger UI
+5. **Verify documentation:** Visit `http://localhost:8090/docs` for Swagger UI
 
 ## Project Structure and Navigation
 
@@ -155,7 +155,7 @@ rummikub-backend/
 
 ### Known Issues and Warnings
 - **Docker compose version warning:** Harmless, can be ignored
-- **Server binds 0.0.0.0:8000:** Accessible from any interface  
+- **Server binds 0.0.0.0:8090:** Accessible from any interface  
 - **No persistence:** Game state lost on restart
 - **Hard-coded credentials:** Admin credentials in source code
 
@@ -184,18 +184,18 @@ python generate_openapi.py      # Updates openapi.json
 ## Troubleshooting
 
 ### Server Won't Start
-- **Check port 8000:** Kill any processes using the port
+- **Check port 8090:** Kill any processes using the port
 - **Verify dependencies:** Run `pip install -r requirements.txt`
 - **Check syntax:** Run `python -m py_compile main.py`
 
 ### Tests Failing  
-- **Ensure server running:** Tests expect server on localhost:8000
+- **Ensure server running:** Tests expect server on localhost:8090
 - **Check dependencies:** Ensure `requests` module available (usually pre-installed)
 - **Review error messages:** Test scripts provide detailed error output
 
 ### Docker Issues
 - **Build failures:** Check Docker daemon is running  
-- **Port conflicts:** Ensure port 8000 is available
+- **Port conflicts:** Ensure port 8090 is available
 - **Version warnings:** Safe to ignore obsolete version attribute warning
 
 ## Quick Reference Commands
@@ -211,9 +211,9 @@ docker compose build && docker compose up
 python test_api.py && python test_actions.py && python test_openapi.py
 
 # API documentation
-# Visit http://localhost:8000/docs (Swagger UI)
-# Visit http://localhost:8000/redoc (ReDoc)
+# Visit http://localhost:8090/docs (Swagger UI)
+# Visit http://localhost:8090/redoc (ReDoc)
 
 # Manual API testing
-curl -u admin:rummikub2024 -X POST localhost:8000/game -H "Content-Type: application/json" -d '{"max_players":2}'
+curl -u admin:rummikub2024 -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2}'
 ```

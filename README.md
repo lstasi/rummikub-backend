@@ -21,9 +21,9 @@ See [RUMMIKUB_RULES.md](RUMMIKUB_RULES.md) for complete game rules and gameplay 
 A complete OpenAPI 3.1.0 specification is available in the repository:
 - **Static file**: [`openapi.json`](openapi.json) - Version-controlled OpenAPI specification
 - **Live documentation**: Available when server is running:
-  - Swagger UI: `http://localhost:8000/docs`
-  - ReDoc: `http://localhost:8000/redoc`
-  - OpenAPI JSON: `http://localhost:8000/openapi.json`
+  - Swagger UI: `http://localhost:8090/docs`
+  - ReDoc: `http://localhost:8090/redoc`
+  - OpenAPI JSON: `http://localhost:8090/openapi.json`
 
 To regenerate the OpenAPI specification file:
 ```bash
@@ -59,7 +59,7 @@ python generate_openapi.py
    docker-compose up --build
    ```
 
-2. **API will be available at:** `http://localhost:8000`
+2. **API will be available at:** `http://localhost:8090`
 
 ### Local Development
 
@@ -73,13 +73,13 @@ python generate_openapi.py
    python main.py
    ```
 
-3. **API will be available at:** `http://localhost:8000`
+3. **API will be available at:** `http://localhost:8090`
 
 ## Usage Example
 
 ### 1. Create a Game
 ```bash
-curl -X POST "http://localhost:8000/game" \
+curl -X POST "http://localhost:8090/game" \
   -H "Content-Type: application/json" \
   -u "admin:rummikub2024" \
   -d '{"max_players": 4}'
@@ -98,7 +98,7 @@ Response:
 
 ### 2. Join a Game
 ```bash
-curl -X POST "http://localhost:8000/game/{game_id}/join" \
+curl -X POST "http://localhost:8090/game/{game_id}/join" \
   -H "Content-Type: application/json" \
   -d '{"invite_code": "ABC123", "player_name": "PlayerName"}'
 ```
@@ -115,12 +115,12 @@ Response:
 
 ### 3. Get Game State
 ```bash
-curl "http://localhost:8000/game/{game_id}?session_id={session_id}"
+curl "http://localhost:8090/game/{game_id}?session_id={session_id}"
 ```
 
 ### 4. Perform Actions
 ```bash
-curl -X POST "http://localhost:8000/game/{game_id}/action?session_id={session_id}" \
+curl -X POST "http://localhost:8090/game/{game_id}/action?session_id={session_id}" \
   -H "Content-Type: application/json" \
   -d '{"action_type": "place_tiles", "tiles": ["tile-id-1", "tile-id-2", "tile-id-3"]}'
 ```

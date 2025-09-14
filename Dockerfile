@@ -7,6 +7,9 @@ RUN pip install --no-cache-dir --trusted-host pypi.org --trusted-host pypi.pytho
 
 COPY . .
 
-EXPOSE 8000
+# Ensure web interface is available
+RUN mkdir -p static && cp web/index.html static/ 2>/dev/null || echo "Web submodule not available, using fallback"
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 8090
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090"]

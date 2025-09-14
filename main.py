@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Header
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 from typing import Optional
 import secrets
 import jwt
@@ -55,6 +57,10 @@ All other game operations use session-based authentication with session IDs.
         },
     ]
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 security = HTTPBasic()
 bearer_security = HTTPBearer()
 game_service = GameService()
@@ -115,19 +121,23 @@ def verify_token(authorization: str = Header(...)):
         )
 
 
-@app.get("/", tags=["general"])
+@app.get("/", tags=["general"], response_class=HTMLResponse)
 async def root():
-    """Root endpoint with basic API information."""
-    return {
-        "message": "Rummikub Backend API",
-        "version": "1.0.0",
-        "endpoints": {
-            "create_game": "POST /game (requires auth)",
-            "join_game": "POST /game/{game_id}/join",
-            "get_game_state": "GET /game/{game_id}",
-            "perform_action": "POST /game/{game_id}/action"
-        }
-    }
+    """Serve the main web interface."""
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return HTMLResponse("""
+        <html>
+        <head><title>Rummikub Backend</title></head>
+        <body>
+        <h1>Rummikub Backend API</h1>
+        <p>The web interface is not available. API endpoints are still accessible.</p>
+        <p><a href="/docs">API Documentation</a></p>
+        </body>
+        </html>
+        """, status_code=200)
 
 
 @app.post("/game", tags=["game-management"])
@@ -258,4 +268,4 @@ async def get_game_info(game_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8090)
