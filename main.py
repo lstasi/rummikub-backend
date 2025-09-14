@@ -4,6 +4,8 @@ from typing import Optional
 import secrets
 import jwt
 from datetime import datetime, timedelta
+import os
+
 from models import (
     CreateGameRequest, JoinGameRequest, GameAction, 
     ActionResponse, GameState, Game
@@ -59,10 +61,9 @@ game_service = GameService()
 
 # Hard-coded credentials for game creation
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "rummikub2024"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "rummikub2024")
 JWT_SECRET = "rummikub-jwt-secret-2024"
 JWT_ALGORITHM = "HS256"
-
 
 def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(security)):
     """Verify admin credentials for game creation."""
