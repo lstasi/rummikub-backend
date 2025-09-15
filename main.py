@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, status, Header
-from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from typing import Optional
@@ -70,7 +70,6 @@ All other game operations use session-based authentication with session IDs.
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 security = HTTPBasic()
-bearer_security = HTTPBearer()
 game_service = GameService()
 
 # Hard-coded credentials for game creation
