@@ -5,11 +5,13 @@ A Python-based REST API for playing Rummikub online. This backend provides game 
 ## Features
 
 - 🎮 Complete Rummikub game logic implementation
-- 🔐 Session-based authentication (no user registration required)
-- 🎫 Invite code system for joining games
+- 🔐 JWT-based authentication (no user registration required)
+- 🌐 Web interface for playing games in browser
+- 🎫 Simple game joining system with game IDs
 - 🏗️ In-memory database for fast gameplay
 - 🐳 Docker support for easy deployment
 - 📋 RESTful API with comprehensive game state management
+- 📊 Real-time game state updates
 
 ## Game Rules
 
@@ -33,19 +35,27 @@ python generate_openapi.py
 ## API Endpoints
 
 ### Authentication
-- **Game Creation**: Requires basic auth with hard-coded credentials
-  - Username: `admin`
-  - Password: `rummikub2024`
+
+#### Game Creation (Admin Only)
+- **Basic Authentication** required for creating new games:
+  - Username: `admin` 
+  - Password: `rummikub2024` (configurable via `ADMIN_PASSWORD` environment variable)
+
+#### Game Operations (Players)
+- **JWT Bearer Token** required for all game operations after joining
+- Tokens are obtained when joining a game
+- Include token in Authorization header: `Authorization: Bearer <token>`
+- Tokens expire after 24 hours
 
 ### Endpoints
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| GET | `/` | API information | No |
+| GET | `/` | Web interface & API information | No |
 | POST | `/game` | Create new game | Yes (Basic Auth) |
-| POST | `/game/{game_id}/join` | Join game with invite code | No |
-| GET | `/game/{game_id}` | Get game state | Session ID |
-| POST | `/game/{game_id}/action` | Perform game action | Session ID |
+| POST | `/game/{game_id}/join` | Join game with player name | No |
+| GET | `/game/{game_id}` | Get game state | Yes (Bearer Token) |
+| POST | `/game/{game_id}/action` | Perform game action | Yes (Bearer Token) |
 | GET | `/game/{game_id}/info` | Get basic game info | No |
 
 ## Quick Start
@@ -92,15 +102,15 @@ make clean         # Clean build artifacts
 curl -X POST "http://localhost:8090/game" \
   -H "Content-Type: application/json" \
   -u "admin:rummikub2024" \
-  -d '{"max_players": 4}'
+  -d '{"max_players": 4, "name": "GameHost"}'
 ```
 
 Response:
 ```json
 {
   "game_id": "game-uuid",
-  "invite_code": "ABC123",
   "max_players": 4,
+  "creator_name": "GameHost",
   "status": "waiting",
   "message": "Game created successfully"
 }
@@ -110,14 +120,16 @@ Response:
 ```bash
 curl -X POST "http://localhost:8090/game/{game_id}/join" \
   -H "Content-Type: application/json" \
-  -d '{"invite_code": "ABC123", "player_name": "PlayerName"}'
+  -d '{"player_name": "PlayerName"}'
 ```
 
 Response:
 ```json
 {
-  "session_id": "session-uuid",
+  "access_token": "jwt-token-here",
+  "token_type": "bearer",
   "game_id": "game-uuid",
+  "player_name": "PlayerName",
   "message": "Successfully joined game",
   "game_state": {...}
 }
@@ -125,13 +137,15 @@ Response:
 
 ### 3. Get Game State
 ```bash
-curl "http://localhost:8090/game/{game_id}?session_id={session_id}"
+curl "http://localhost:8090/game/{game_id}" \
+  -H "Authorization: Bearer {access_token}"
 ```
 
 ### 4. Perform Actions
 ```bash
-curl -X POST "http://localhost:8090/game/{game_id}/action?session_id={session_id}" \
+curl -X POST "http://localhost:8090/game/{game_id}/action" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {access_token}" \
   -d '{"action_type": "place_tiles", "tiles": ["tile-id-1", "tile-id-2", "tile-id-3"]}'
 ```
 
@@ -144,18 +158,39 @@ curl -X POST "http://localhost:8090/game/{game_id}/action?session_id={session_id
 
 ## Testing
 
+### Automated Tests
 Run the test script to verify API functionality:
 
 ```bash
-python test_api.py
+make test
 ```
+
+Or run individual test files:
+```bash
+python tests/test_api.py          # Basic API functionality
+python tests/test_actions.py      # Game actions and turns  
+python tests/test_openapi.py      # OpenAPI specification validation
+```
+
+### Dependencies
+
+The project uses minimal dependencies for optimal performance:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `fastapi` | 0.116.1 | Web framework and API endpoints |
+| `uvicorn` | 0.35.0 | ASGI server for running the application |
+| `pydantic` | 2.11.9 | Data validation and JSON serialization |
+| `pyjwt` | 2.10.1 | JWT token generation and validation |
+| `python-multipart` | 0.0.6 | Form data parsing (FastAPI dependency) |
+| `requests` | 2.32.5 | HTTP client for testing scripts |
 
 ## Game Flow
 
-1. **Admin creates game** using basic auth
-2. **Players join** using invite code and choose username
+1. **Admin creates game** using basic auth credentials
+2. **Players join** using game ID and choosing username (receive JWT token)
 3. **Game starts** automatically when 2+ players join
-4. **Players take turns** placing tiles or drawing from pool
+4. **Players take turns** placing tiles or drawing from pool (using JWT token for authentication)
 5. **First player** to empty their hand wins
 
 ## Project Structure
@@ -200,3 +235,23 @@ rummikub-backend/
 ## License
 
 This project is for educational and demonstration purposes.
+
+## Quick Reference Commands
+
+```bash
+# Local development
+pip install -r requirements.txt && python main.py
+
+# Docker development  
+docker compose up --build
+
+# Full test suite
+make test
+
+# API documentation
+# Visit http://localhost:8090/docs (Swagger UI)
+# Visit http://localhost:8090/redoc (ReDoc)
+
+# Manual API testing
+curl -u admin:rummikub2024 -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2,"name":"TestHost"}'
+```
