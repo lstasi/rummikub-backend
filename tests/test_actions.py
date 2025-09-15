@@ -32,14 +32,14 @@ def test_game_actions():
     print(f"✅ Created game: {game_id}")
     
     # Join game with first player
-    join_data = {"game_id": game_id, "player_name": "Player1"}
+    join_data = {"player_name": "Player1"}
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
     player1_info = response.json()
     token1 = player1_info["access_token"]
     print(f"✅ Player1 joined")
     
     # Join game with second player  
-    join_data = {"game_id": game_id, "player_name": "Player2"}
+    join_data = {"player_name": "Player2"}
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
     player2_info = response.json()
     token2 = player2_info["access_token"]

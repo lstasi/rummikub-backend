@@ -7,6 +7,14 @@ import secrets
 import jwt
 from datetime import datetime, timedelta
 import os
+import logging
+
+# Configure enhanced logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 from models import (
     CreateGameRequest, JoinGameRequest, GameAction, 
@@ -153,7 +161,9 @@ async def create_game(
     
     **Authentication Required**: Basic Auth (admin:rummikub2024)
     """
+    logger.info(f"Creating new game for creator: {request.name}, max_players: {request.max_players}")
     game = game_service.create_game(request.max_players, request.name)
+    logger.info(f"Game created successfully with ID: {game.id}")
     
     return {
         "game_id": game.id,
@@ -174,16 +184,17 @@ async def join_game(game_id: str, request: JoinGameRequest):
     
     The game will automatically start when 2 or more players have joined.
     """
-    if request.game_id != game_id:
-        raise HTTPException(status_code=400, detail="Game ID in URL does not match request body")
-    
+    logger.info(f"Player '{request.player_name}' attempting to join game: {game_id}")
     game, player, message = game_service.join_game_by_id(
         game_id, 
         request.player_name
     )
     
     if not game:
+        logger.warning(f"Failed to join game {game_id}: {message}")
         raise HTTPException(status_code=400, detail=message)
+    
+    logger.info(f"Player '{player.name}' successfully joined game {game_id}")
     
     # Create JWT token
     access_token = create_access_token(game.id, player.id, player.name)
@@ -268,4 +279,13 @@ async def get_game_info(game_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8090)
+    logger.info("Starting Rummikub Backend API server...")
+    logger.info("Server will be available at: http://localhost:8090")
+    logger.info("API documentation: http://localhost:8090/docs")
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8090,
+        log_level="debug",
+        access_log=True
+    )

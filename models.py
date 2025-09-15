@@ -151,7 +151,6 @@ class GameState(BaseModel):
 
 
 class JoinGameRequest(BaseModel):
-    game_id: str
     player_name: str
 
 

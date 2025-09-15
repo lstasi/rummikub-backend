@@ -59,13 +59,12 @@ def test_api():
     # Test joining game
     print("\n3. Testing game join...")
     join_data = {
-        "game_id": game_id,
         "player_name": "TestPlayer1"
     }
     response = requests.post(f"{BASE_URL}/game/{game_id}/join", json=join_data)
     print(f"Status: {response.status_code}")
     join_info = response.json()
-    print(f"Response keys: {join_info.keys()}")
+    print(f"Response: {join_info}")
     
     if response.status_code != 200:
         print("❌ Failed to join game")

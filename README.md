@@ -75,6 +75,16 @@ python generate_openapi.py
 
 3. **API will be available at:** `http://localhost:8090`
 
+### Makefile Targets
+
+The project includes a Makefile for development tasks:
+
+```bash
+make help          # Show available targets
+make test          # Run all tests and validation
+make clean         # Clean build artifacts
+```
+
 ## Usage Example
 
 ### 1. Create a Game
@@ -155,10 +165,18 @@ rummikub-backend/
 ├── main.py              # FastAPI application
 ├── models.py            # Pydantic models and data structures
 ├── game_service.py      # Game logic and business rules
-├── test_api.py         # API testing script
 ├── generate_openapi.py  # Script to generate OpenAPI specification
 ├── openapi.json         # OpenAPI 3.1.0 specification (generated)
 ├── requirements.txt     # Python dependencies
+├── Makefile            # Build automation and testing
+├── static/             # Static web files
+│   ├── index.html      # Main web interface
+│   └── rules.html      # Game rules page
+├── tests/              # Test files
+│   ├── test_api.py     # API testing script
+│   ├── test_actions.py # Game action tests
+│   ├── test_openapi.py # OpenAPI validation tests
+│   └── test_env_password.py # Environment password tests
 ├── Dockerfile          # Docker container configuration
 ├── docker-compose.yml  # Docker compose for easy deployment
 ├── RUMMIKUB_RULES.md   # Complete game rules
@@ -171,7 +189,7 @@ rummikub-backend/
 1. Update models in `models.py` if needed
 2. Implement logic in `game_service.py`
 3. Add API endpoints in `main.py`
-4. Test with `test_api.py`
+4. Test with scripts in `tests/` directory
 
 ### Contributing
 1. Fork the repository

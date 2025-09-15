@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rummikub Web - Game Rules</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .tile-example {
+            display: inline-block;
+            width: 30px;
+            height: 40px;
+            border-radius: 4px;
+            color: white;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .black { background: #2d3748; }
+        .red { background: #e53e3e; }
+        .blue { background: #3182ce; }
+        .orange { background: #dd6b20; }
+        .back-btn {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-btn">← Back to Game</a>
+        
+        <h1>🎲 Rummikub Game Rules</h1>
+
+        <h2>Overview</h2>
+        <p>Rummikub is a tile-based game for 2-4 players, played with 104 number tiles and 2 joker tiles. The goal is to be the first player to play all tiles from your rack.</p>
+
+        <h2>Game Components</h2>
+        <ul>
+            <li><strong>106 tiles total:</strong>
+                <ul>
+                    <li>104 numbered tiles: Numbers 1-13 in four colors (2 sets each)</li>
+                    <li>Colors: <span class="tile-example black">B</span> Black, <span class="tile-example red">R</span> Red, <span class="tile-example blue">B</span> Blue, <span class="tile-example orange">O</span> Orange</li>
+                    <li>2 joker tiles (can substitute any tile)</li>
+                </ul>
+            </li>
+        </ul>
+
+        <h2>Initial Setup</h2>
+        <ol>
+            <li>Each player draws 14 tiles randomly from the pool</li>
+            <li>The remaining tiles form the "pool" for drawing</li>
+            <li>Players keep their tiles hidden on their rack</li>
+        </ol>
+
+        <h2>Valid Combinations</h2>
+
+        <h3>Groups</h3>
+        <p><strong>Definition:</strong> 3 or 4 tiles of the same number in different colors</p>
+        <p><strong>Examples:</strong></p>
+        <ul>
+            <li><span class="tile-example black">3</span><span class="tile-example red">3</span><span class="tile-example blue">3</span> (3 in black, red, blue)</li>
+            <li><span class="tile-example black">7</span><span class="tile-example red">7</span><span class="tile-example blue">7</span><span class="tile-example orange">7</span> (7 in all four colors)</li>
+        </ul>
+
+        <h3>Runs</h3>
+        <p><strong>Definition:</strong> 3 or more consecutive numbers in the same color</p>
+        <p><strong>Examples:</strong></p>
+        <ul>
+            <li><span class="tile-example black">4</span><span class="tile-example black">5</span><span class="tile-example black">6</span> (consecutive black tiles)</li>
+            <li><span class="tile-example red">9</span><span class="tile-example red">10</span><span class="tile-example red">11</span><span class="tile-example red">12</span><span class="tile-example red">13</span> (consecutive red tiles)</li>
+        </ul>
+
+        <h2>Initial Meld Requirement</h2>
+        <ul>
+            <li>Before placing tiles on the board, you must make an "initial meld"</li>
+            <li>The initial meld must have a total value of <strong>at least 30 points</strong></li>
+            <li>Tile values: Numbers 1-13 are worth their face value</li>
+            <li>Jokers are worth the value of the tile they represent</li>
+        </ul>
+
+        <h2>How to Play</h2>
+
+        <h3>Your Turn Options</h3>
+        <ol>
+            <li><strong>Place tiles:</strong> Create new combinations or add to existing ones</li>
+            <li><strong>Draw a tile:</strong> If unable to play, draw one tile from the pool (ends your turn)</li>
+        </ol>
+
+        <h3>Playing Tiles</h3>
+        <ul>
+            <li>You can add tiles to existing combinations on the board</li>
+            <li>You can rearrange existing combinations to create new valid ones</li>
+            <li>All combinations on the board must remain valid after any changes</li>
+            <li>If you start rearranging, you must complete all changes in your turn</li>
+        </ul>
+
+        <h3>Joker Rules</h3>
+        <ul>
+            <li>Jokers can substitute for any tile in a combination</li>
+            <li>A joker's value is determined by its position in the combination</li>
+            <li>You can retrieve a joker by replacing it with the actual tile</li>
+        </ul>
+
+        <h2>Winning</h2>
+        <p>The first player to play all tiles from their rack wins the round!</p>
+
+        <h2>Tips for Success</h2>
+        <ul>
+            <li>Try to form your initial 30-point meld as early as possible</li>
+            <li>Look for opportunities to add single tiles to existing combinations</li>
+            <li>Use jokers wisely - they're valuable for completing difficult combinations</li>
+            <li>Pay attention to what other players are collecting</li>
+            <li>Don't be afraid to rearrange the board to create new opportunities</li>
+        </ul>
+
+        <h2>Web Game Features</h2>
+        <ul>
+            <li><strong>Drag & Drop:</strong> Drag tiles from your hand to the board</li>
+            <li><strong>Click Selection:</strong> Click tiles to select them, then use "Place Selected Tiles"</li>
+            <li><strong>Mobile Friendly:</strong> Works great on phones and tablets</li>
+            <li><strong>Real-time:</strong> Game updates automatically when other players move</li>
+            <li><strong>Rule Validation:</strong> Invalid moves are prevented with helpful messages</li>
+        </ul>
+
+        <a href="/" class="back-btn">← Back to Game</a>
+    </div>
+</body>
+</html>
