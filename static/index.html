@@ -807,6 +807,25 @@
                 localStorage.setItem('rummikub-game', JSON.stringify(data));
             }
 
+            handleGameNotFound() {
+                // Clear the stored game session
+                localStorage.removeItem('rummikub-game');
+                
+                // Reset game state
+                this.gameId = '';
+                this.sessionId = '';
+                this.gameState = null;
+                this.selectedTiles.clear();
+                this.pendingTiles = [];
+                
+                // Show message and redirect to main page
+                this.showMessage('Game no longer exists (server may have restarted). Returning to main page...', 'warning');
+                
+                setTimeout(() => {
+                    this.showSetupScreen();
+                }, 3000);
+            }
+
             showMessage(message, type = 'info') {
                 let messageEl = this.statusMessage; // default
                 
@@ -1057,6 +1076,11 @@
                     );
 
                     if (!response.ok) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
+                            this.handleGameNotFound();
+                            return;
+                        }
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
@@ -1065,11 +1089,16 @@
 
                 } catch (error) {
                     console.error('Error refreshing game:', error);
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
+                        this.handleGameNotFound();
+                        return;
+                    }
                     this.showMessage(`Failed to refresh game: ${error.message}`, 'error');
                 }
             }
-
-            updateGameUI() {
                 if (!this.gameState) return;
 
                 // Update game info
@@ -1339,6 +1368,11 @@
                     );
 
                     if (!response.ok) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
+                            this.handleGameNotFound();
+                            return;
+                        }
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
@@ -1353,6 +1387,13 @@
 
                 } catch (error) {
                     console.error('Error drawing tile:', error);
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
+                        this.handleGameNotFound();
+                        return;
+                    }
                     this.showMessage(`Failed to draw tile: ${error.message}`, 'error');
                 }
             }
@@ -1407,6 +1448,11 @@
                     );
 
                     if (!response.ok) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
+                            this.handleGameNotFound();
+                            return;
+                        }
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
@@ -1422,6 +1468,13 @@
 
                 } catch (error) {
                     console.error('Error completing turn:', error);
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
+                        this.handleGameNotFound();
+                        return;
+                    }
                     this.showMessage(`Failed to complete turn: ${error.message}`, 'error');
                 }
             }
@@ -1444,35 +1497,6 @@
                 this.updateBoard();
                 this.updateButtonStates();
                 this.showMessage('Board reset!', 'success');
-            }
-
-            async refreshGame() {
-                if (!this.gameId || !this.sessionId) {
-                    this.showMessage('No active game session', 'error');
-                    return;
-                }
-
-                try {
-                    const response = await fetch(
-                        `${this.baseUrl}/game/${this.gameId}`,
-                        {
-                            headers: {
-                                'Authorization': `Bearer ${this.sessionId}`
-                            }
-                        }
-                    );
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    this.gameState = await response.json();
-                    this.updateGameUI();
-
-                } catch (error) {
-                    console.error('Error refreshing game:', error);
-                    this.showMessage(`Failed to refresh game: ${error.message}`, 'error');
-                }
             }
 
         }
