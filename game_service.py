@@ -1,5 +1,6 @@
 import random
 import string
+import threading
 from typing import List, Optional, Dict
 from models import (
     Game, Player, Tile, TileColor, Combination, GameStatus, 
@@ -11,6 +12,8 @@ class GameService:
     def __init__(self):
         self.games: Dict[str, Game] = {}
         self.sessions: Dict[str, Dict[str, str]] = {}  # session_id -> {game_id, player_id}
+        self.game_locks: Dict[str, threading.Lock] = {}  # game_id -> lock for concurrency control
+        self.action_counters: Dict[str, int] = {}  # game_id -> action counter for detecting race conditions
 
     def create_tile_pool(self) -> List[Tile]:
         """Create the initial pool of 106 tiles."""
@@ -42,6 +45,9 @@ class GameService:
         )
         
         self.games[game.id] = game
+        # Initialize concurrency control for this game
+        self.game_locks[game.id] = threading.Lock()
+        self.action_counters[game.id] = 0
         return game
 
     def find_game_by_invite_code(self, invite_code: str) -> Optional[Game]:
@@ -54,41 +60,58 @@ class GameService:
     def join_game_by_id(self, game_id: str, player_name: str) -> tuple[Optional[Game], Optional[Player], str]:
         """
         Join a game by game ID and player name.
+        For multi-screen access: allows re-joining with same name if game is in progress.
         Returns (game, player, message)
         """
         game = self.games.get(game_id)
         if not game:
             return None, None, "Game not found"
         
-        if game.status != GameStatus.WAITING:
-            return None, None, "Game is not accepting new players"
+        # Check if player already exists (for multi-screen re-join)
+        existing_player = None
+        for player in game.players:
+            if player.name == player_name:
+                existing_player = player
+                break
         
-        if len(game.players) >= game.max_players:
-            return None, None, "Game is full"
+        # If game is in progress and player exists, allow re-join (multi-screen access)
+        if game.status == GameStatus.IN_PROGRESS and existing_player:
+            return game, existing_player, "Re-joined game for multi-screen access"
         
-        # Check if player name is already taken
-        if any(player.name == player_name for player in game.players):
-            return None, None, "Player name already taken"
+        # If game is finished, don't allow new joins
+        if game.status == GameStatus.FINISHED:
+            return None, None, "Game has finished"
         
-        # Create player and add to game
-        player = Player(name=player_name)
+        # For waiting games, enforce the original rules
+        if game.status == GameStatus.WAITING:
+            if len(game.players) >= game.max_players:
+                return None, None, "Game is full"
+            
+            # Check if player name is already taken in waiting games
+            if existing_player:
+                return None, None, "Player name already taken"
+            
+            # Create new player and add to game
+            player = Player(name=player_name)
+            
+            # Deal 14 tiles to the player
+            if len(game.tile_pool) >= 14:
+                player.tiles = game.tile_pool[:14]
+                game.tile_pool = game.tile_pool[14:]
+            else:
+                return None, None, "Not enough tiles in pool"
+            
+            game.players.append(player)
+            
+            # Start game if we have at least 2 players
+            if len(game.players) >= 2:
+                game.status = GameStatus.IN_PROGRESS
+                for p in game.players:
+                    p.status = PlayerStatus.PLAYING
+            
+            return game, player, "Successfully joined game"
         
-        # Deal 14 tiles to the player
-        if len(game.tile_pool) >= 14:
-            player.tiles = game.tile_pool[:14]
-            game.tile_pool = game.tile_pool[14:]
-        else:
-            return None, None, "Not enough tiles in pool"
-        
-        game.players.append(player)
-        
-        # Start game if we have at least 2 players
-        if len(game.players) >= 2:
-            game.status = GameStatus.IN_PROGRESS
-            for p in game.players:
-                p.status = PlayerStatus.PLAYING
-        
-        return game, player, "Successfully joined game"
+        return None, None, "Unable to join game"
 
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
@@ -134,33 +157,48 @@ class GameService:
                 return player
         return None
 
-    def perform_action_by_player(self, game_id: str, player_id: str, action: GameAction) -> ActionResponse:
-        """Perform a game action by player ID."""
+    def perform_action_by_player(self, game_id: str, player_id: str, action: GameAction, session_id: str = None) -> ActionResponse:
+        """Perform a game action by player ID with concurrency control for multi-screen access."""
         game = self.games.get(game_id)
         if not game:
             return ActionResponse(success=False, message="Game not found")
         
-        player = self._get_player_by_id(game, player_id)
-        if not player:
-            return ActionResponse(success=False, message="Player not found")
+        # Get the game lock for concurrency control
+        game_lock = self.game_locks.get(game_id)
+        if not game_lock:
+            return ActionResponse(success=False, message="Game lock not found")
         
-        if game.status != GameStatus.IN_PROGRESS:
-            return ActionResponse(success=False, message="Game is not in progress")
-        
-        if game.current_player.id != player.id:
-            return ActionResponse(success=False, message="Not your turn")
-        
-        # Handle different action types
-        if action.action_type == "place_tiles":
-            return self._handle_place_tiles(game, player, action)
-        elif action.action_type == "draw_tile":
-            return self._handle_draw_tile(game, player)
-        elif action.action_type == "rearrange":
-            return self._handle_rearrange(game, player, action)
-        else:
-            return ActionResponse(success=False, message="Invalid action type")
+        # Use lock to prevent race conditions between multiple sessions
+        with game_lock:
+            # Re-check game state after acquiring lock (it might have changed)
+            game = self.games.get(game_id)
+            if not game:
+                return ActionResponse(success=False, message="Game not found")
+            
+            player = self._get_player_by_id(game, player_id)
+            if not player:
+                return ActionResponse(success=False, message="Player not found")
+            
+            if game.status != GameStatus.IN_PROGRESS:
+                return ActionResponse(success=False, message="Game is not in progress")
+            
+            if game.current_player.id != player.id:
+                return ActionResponse(success=False, message="Not your turn")
+            
+            # Increment action counter to track when actions are processed
+            self.action_counters[game_id] += 1
+            
+            # Handle different action types
+            if action.action_type == "place_tiles":
+                return self._handle_place_tiles(game, player, action, session_id)
+            elif action.action_type == "draw_tile":
+                return self._handle_draw_tile(game, player, session_id)
+            elif action.action_type == "rearrange":
+                return self._handle_rearrange(game, player, action, session_id)
+            else:
+                return ActionResponse(success=False, message="Invalid action type")
 
-    def _handle_place_tiles(self, game: Game, player: Player, action: GameAction) -> ActionResponse:
+    def _handle_place_tiles(self, game: Game, player: Player, action: GameAction, session_id: str = None) -> ActionResponse:
         """Handle placing tiles on the board."""
         if not action.tiles:
             return ActionResponse(success=False, message="No tiles specified")
@@ -209,7 +247,7 @@ class GameService:
             game_state=game_state
         )
 
-    def _handle_draw_tile(self, game: Game, player: Player) -> ActionResponse:
+    def _handle_draw_tile(self, game: Game, player: Player, session_id: str = None) -> ActionResponse:
         """Handle drawing a tile from the pool."""
         if len(game.tile_pool) == 0:
             return ActionResponse(success=False, message="No tiles left in pool")
@@ -228,7 +266,7 @@ class GameService:
             game_state=game_state
         )
 
-    def _handle_rearrange(self, game: Game, player: Player, action: GameAction) -> ActionResponse:
+    def _handle_rearrange(self, game: Game, player: Player, action: GameAction, session_id: str = None) -> ActionResponse:
         """Handle rearranging tiles on the board."""
         # This is a complex operation that would involve validating that all
         # combinations remain valid after rearrangement

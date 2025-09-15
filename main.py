@@ -93,11 +93,14 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
 
 
 def create_access_token(game_id: str, player_id: str, player_name: str) -> str:
-    """Create a JWT access token for a player."""
+    """Create a JWT access token for a player with unique session ID for multi-screen access."""
+    import uuid
+    session_id = str(uuid.uuid4())  # Unique session ID for each login
     payload = {
         "game_id": game_id,
         "player_id": player_id,
         "player_name": player_name,
+        "session_id": session_id,  # Add session ID to make tokens unique
         "exp": datetime.utcnow() + timedelta(hours=24),
         "iat": datetime.utcnow()
     }
@@ -245,7 +248,12 @@ async def perform_action(game_id: str, action: GameAction, token_data: dict = De
     if token_data["game_id"] != game_id:
         raise HTTPException(status_code=400, detail="Token does not match game")
     
-    result = game_service.perform_action_by_player(game_id, token_data["player_id"], action)
+    result = game_service.perform_action_by_player(
+        game_id, 
+        token_data["player_id"], 
+        action, 
+        token_data.get("session_id")
+    )
     
     if not result.success:
         raise HTTPException(status_code=400, detail=result.message)
