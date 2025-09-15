@@ -1076,8 +1076,8 @@
                     );
 
                     if (!response.ok) {
-                        // Handle specific cases where game no longer exists or token mismatch
-                        if (response.status === 404 || response.status === 400) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
                             this.handleGameNotFound();
                             return;
                         }
@@ -1089,8 +1089,10 @@
 
                 } catch (error) {
                     console.error('Error refreshing game:', error);
-                    // Check if it's a game not found error
-                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('Game not found') || error.message.includes('Token does not match')) {
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
                         this.handleGameNotFound();
                         return;
                     }
@@ -1366,8 +1368,8 @@
                     );
 
                     if (!response.ok) {
-                        // Handle specific cases where game no longer exists or token mismatch
-                        if (response.status === 404 || response.status === 400) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
                             this.handleGameNotFound();
                             return;
                         }
@@ -1385,8 +1387,10 @@
 
                 } catch (error) {
                     console.error('Error drawing tile:', error);
-                    // Check if it's a game not found error
-                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('Game not found') || error.message.includes('Token does not match')) {
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
                         this.handleGameNotFound();
                         return;
                     }
@@ -1444,8 +1448,8 @@
                     );
 
                     if (!response.ok) {
-                        // Handle specific cases where game no longer exists or token mismatch
-                        if (response.status === 404 || response.status === 400) {
+                        // Handle specific cases where game no longer exists or token issues
+                        if (response.status === 404 || response.status === 400 || response.status === 401) {
                             this.handleGameNotFound();
                             return;
                         }
@@ -1464,8 +1468,10 @@
 
                 } catch (error) {
                     console.error('Error completing turn:', error);
-                    // Check if it's a game not found error
-                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('Game not found') || error.message.includes('Token does not match')) {
+                    // Check if it's a game not found error or auth error
+                    if (error.message.includes('404') || error.message.includes('400') || error.message.includes('401') || 
+                        error.message.includes('Game not found') || error.message.includes('Token does not match') || 
+                        error.message.includes('Invalid token')) {
                         this.handleGameNotFound();
                         return;
                     }
