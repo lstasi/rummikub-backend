@@ -322,6 +322,42 @@
             .game-info {
                 grid-template-columns: 1fr;
             }
+
+            .player-blocks {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+                padding: 15px;
+            }
+
+            .player-block {
+                padding: 10px;
+                min-height: 60px;
+            }
+
+            .game-status {
+                grid-template-columns: 1fr;
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .game-actions {
+                position: relative;
+                transform: none;
+                left: auto;
+                bottom: auto;
+                margin-top: 20px;
+                flex-direction: column;
+                border-radius: 15px;
+            }
+
+            .game-actions button {
+                margin: 5px 0;
+                min-width: auto;
+            }
+
+            .board-container {
+                margin-bottom: 20px; /* Reduce since buttons are no longer fixed */
+            }
         }
 
         /* Touch-friendly drag indicators */
@@ -378,13 +414,134 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* Player blocks section */
+        .player-blocks {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .player-block {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .player-block.active {
+            border-color: #48bb78;
+            background: #f0fff4;
+        }
+
+        .player-block.current-turn {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: bold;
+        }
+
+        .player-block .player-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .player-block .player-tiles-count {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .player-block.current-turn .player-tiles-count {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .player-block.empty {
+            opacity: 0.6;
+            font-style: italic;
+            color: #999;
+        }
+
+        /* Game status section */
+        .game-status {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .status-item {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .status-item h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+            color: #333;
+        }
+
+        .status-item .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        /* Player hand improvements */
+        .hand-lines {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .hand-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-height: 70px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .hand-line.drag-over {
+            border-color: #28a745;
+            background: #f0fff4;
+        }
+
+        .hand-line:empty::after {
+            content: "Drag tiles here to organize them";
+            color: #adb5bd;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 50px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
             <h1>🎲 Rummikub Web</h1>
-            <p>Mobile-optimized drag & drop Rummikub game</p>
             <p><a href="/static/rules.html" target="_blank" style="color: white; text-decoration: underline;">📖 Game Rules</a></p>
         </header>
 
@@ -492,22 +649,35 @@
 
         <!-- Game Board Screen -->
         <div id="game-screen" class="hidden">
-            <div class="game-info">
-                <div class="info-card">
-                    <h3>Game Status</h3>
-                    <p id="game-status">Waiting...</p>
+            <!-- Player Blocks Section -->
+            <div class="player-blocks">
+                <div class="player-block" id="player-block-0">
+                    <div class="player-name">Player 1</div>
+                    <div class="player-tiles-count">0 tiles</div>
                 </div>
-                <div class="info-card" id="current-player-card">
-                    <h3>Current Player</h3>
-                    <p id="current-player">-</p>
+                <div class="player-block" id="player-block-1">
+                    <div class="player-name">Player 2</div>
+                    <div class="player-tiles-count">0 tiles</div>
                 </div>
-                <div class="info-card">
-                    <h3>Players</h3>
-                    <ul id="players-list" class="player-list"></ul>
+                <div class="player-block" id="player-block-2">
+                    <div class="player-name">Player 3</div>
+                    <div class="player-tiles-count">0 tiles</div>
                 </div>
-                <div class="info-card">
+                <div class="player-block" id="player-block-3">
+                    <div class="player-name">Player 4</div>
+                    <div class="player-tiles-count">0 tiles</div>
+                </div>
+            </div>
+
+            <!-- Game Status Section -->
+            <div class="game-status">
+                <div class="status-item">
                     <h3>Tiles in Pool</h3>
-                    <p id="pool-count">-</p>
+                    <div class="value" id="pool-count">-</div>
+                </div>
+                <div class="status-item">
+                    <h3>Current Turn</h3>
+                    <div class="value" id="current-player">-</div>
                 </div>
             </div>
 
@@ -523,12 +693,14 @@
 
             <div class="player-hand">
                 <h3>Your Tiles (<span id="hand-count">0</span>)</h3>
-                <div id="hand-tiles" class="hand-tiles"></div>
-                
-                <!-- Removed old action buttons - they'll be at bottom now -->
+                <div class="hand-lines">
+                    <div id="hand-line-1" class="hand-line" data-line="1"></div>
+                    <div id="hand-line-2" class="hand-line" data-line="2"></div>
+                    <div id="hand-line-3" class="hand-line" data-line="3"></div>
+                </div>
             </div>
 
-            <!-- Fixed Game Actions at Bottom -->
+            <!-- Game Actions moved below tiles -->
             <div class="game-actions" id="game-actions" style="display: none;">
                 <button id="draw-tile-btn" disabled>Draw Tile</button>
                 <button id="next-turn-btn" disabled>Next Turn</button>
@@ -639,6 +811,9 @@
                 this.savedBoardState = []; // For reset functionality
                 this.pendingTiles = []; // Tiles placed on board but not yet confirmed
                 
+                // New properties for tile positioning
+                this.tilePositions = {}; // Maps tile ID to {line: number, position: number}
+                
                 this.initializeElements();
                 this.attachEventListeners();
                 this.loadFromUrlParams();
@@ -691,6 +866,19 @@
                 this.handCount = document.getElementById('hand-count');
                 this.gameMessage = document.getElementById('game-message');
                 
+                // New player blocks
+                this.playerBlocks = [];
+                for (let i = 0; i < 4; i++) {
+                    this.playerBlocks.push(document.getElementById(`player-block-${i}`));
+                }
+                
+                // New hand lines
+                this.handLines = [
+                    document.getElementById('hand-line-1'),
+                    document.getElementById('hand-line-2'),
+                    document.getElementById('hand-line-3')
+                ];
+                
                 // New game action buttons
                 this.gameActions = document.getElementById('game-actions');
                 this.drawTileBtn = document.getElementById('draw-tile-btn');
@@ -726,11 +914,13 @@
                 this.boardArea.addEventListener('dragenter', () => this.boardArea.classList.add('drag-over'));
                 this.boardArea.addEventListener('dragleave', () => this.boardArea.classList.remove('drag-over'));
 
-                // Drag and drop for hand
-                this.handTiles.addEventListener('dragover', this.handleDragOver.bind(this));
-                this.handTiles.addEventListener('drop', this.handleHandDrop.bind(this));
-                this.handTiles.addEventListener('dragenter', () => this.handTiles.classList.add('drag-over'));
-                this.handTiles.addEventListener('dragleave', () => this.handTiles.classList.remove('drag-over'));
+                // Drag and drop for hand lines
+                this.handLines.forEach((line, index) => {
+                    line.addEventListener('dragover', this.handleDragOver.bind(this));
+                    line.addEventListener('drop', (e) => this.handleHandLineDrop(e, index + 1));
+                    line.addEventListener('dragenter', () => line.classList.add('drag-over'));
+                    line.addEventListener('dragleave', () => line.classList.remove('drag-over'));
+                });
 
                 // Enter key support
                 document.addEventListener('keydown', (e) => {
@@ -1098,30 +1288,13 @@
             updateGameUI() {
                 if (!this.gameState) return;
 
-                // Update game info
-                this.gameStatus.textContent = this.gameState.status;
+                // Update current player
                 this.currentPlayer.textContent = this.gameState.current_player || 'Waiting...';
                 
-                // Highlight current player
-                if (this.gameState.can_play) {
-                    this.currentPlayerCard.classList.add('current-player');
-                } else {
-                    this.currentPlayerCard.classList.remove('current-player');
-                }
+                // Update player blocks
+                this.updatePlayerBlocks();
 
-                // Update players list
-                this.playersList.innerHTML = '';
-                this.gameState.players.forEach(player => {
-                    const li = document.createElement('li');
-                    li.textContent = `${player.name} (${player.tile_count} tiles)`;
-                    if (player.name === this.gameState.current_player) {
-                        li.style.fontWeight = 'bold';
-                        li.style.color = '#48bb78';
-                    }
-                    this.playersList.appendChild(li);
-                });
-
-                // Update pool count (we'll estimate this)
+                // Update pool count
                 this.poolCount.textContent = '~' + (106 - (this.gameState.players.length * 14) - 
                     this.gameState.board.reduce((sum, comb) => sum + comb.tiles.length, 0));
 
@@ -1139,6 +1312,32 @@
 
                 // Hide loading
                 this.boardLoading.classList.add('hidden');
+            }
+
+            updatePlayerBlocks() {
+                // Reset all blocks to empty state
+                this.playerBlocks.forEach((block, index) => {
+                    block.classList.remove('active', 'current-turn');
+                    block.classList.add('empty');
+                    block.querySelector('.player-name').textContent = `Player ${index + 1}`;
+                    block.querySelector('.player-tiles-count').textContent = 'Empty slot';
+                });
+
+                // Update with actual player data
+                this.gameState.players.forEach((player, index) => {
+                    if (index < 4) {
+                        const block = this.playerBlocks[index];
+                        block.classList.remove('empty');
+                        block.classList.add('active');
+                        
+                        if (player.name === this.gameState.current_player) {
+                            block.classList.add('current-turn');
+                        }
+                        
+                        block.querySelector('.player-name').textContent = player.name;
+                        block.querySelector('.player-tiles-count').textContent = `${player.tile_count} tiles`;
+                    }
+                });
             }
 
             updateBoard() {
@@ -1168,12 +1367,18 @@
             }
 
             updateHand() {
-                this.handTiles.innerHTML = '';
+                // Clear all hand lines
+                this.handLines.forEach(line => line.innerHTML = '');
                 this.handCount.textContent = this.gameState.your_tiles.length;
 
                 this.gameState.your_tiles.forEach(tile => {
                     const tileEl = this.createTileElement(tile, true);
-                    this.handTiles.appendChild(tileEl);
+                    
+                    // Get tile position or default to line 1
+                    const position = this.tilePositions[tile.id] || { line: 1, position: 0 };
+                    const targetLine = this.handLines[position.line - 1];
+                    
+                    targetLine.appendChild(tileEl);
                 });
             }
 
@@ -1285,7 +1490,7 @@
                 this.pendingTiles.push(newCombination);
                 
                 // Remove tile from hand visually (it's still in gameState until confirmed)
-                const tileEl = document.querySelector(`#hand-tiles [data-tile-id="${tile.id}"]`);
+                const tileEl = document.querySelector(`[data-tile-id="${tile.id}"]`);
                 if (tileEl) {
                     tileEl.style.display = 'none';
                 }
@@ -1303,15 +1508,27 @@
                 this.resetBoardBtn.disabled = !canPlay || this.pendingTiles.length === 0;
             }
 
-            handleHandDrop(e) {
+            handleHandLineDrop(e, lineNumber) {
                 e.preventDefault();
-                this.handTiles.classList.remove('drag-over');
+                const line = this.handLines[lineNumber - 1];
+                line.classList.remove('drag-over');
                 
-                // If tile was dragged from board back to hand, remove from pending
                 const tileId = e.dataTransfer.getData('text/plain');
                 if (tileId) {
+                    // Update tile position
+                    this.tilePositions[tileId] = { line: lineNumber, position: 0 };
+                    
+                    // If tile was dragged from board back to hand, remove from pending
                     this.removeTileFromBoard(tileId);
+                    
+                    // Re-render hand to reflect new position
+                    this.updateHand();
                 }
+            }
+
+            handleHandDrop(e) {
+                // Redirect to line 1 for backwards compatibility
+                this.handleHandLineDrop(e, 1);
             }
 
             removeTileFromBoard(tileId) {
@@ -1329,12 +1546,13 @@
                 }
                 
                 // Show tile back in hand
-                const tileEl = document.querySelector(`#hand-tiles [data-tile-id="${tileId}"]`);
-                if (tileEl) {
+                const tileEl = document.querySelector(`[data-tile-id="${tileId}"]`);
+                if (tileEl && tileEl.style.display === 'none') {
                     tileEl.style.display = '';
                 }
                 
                 this.updateBoard();
+                this.updateHand(); // Re-render hand to reflect changes
                 this.updateButtonStates();
             }
 
@@ -1486,9 +1704,11 @@
                 this.pendingTiles = [];
                 
                 // Show all hand tiles again
-                const handTiles = document.querySelectorAll('#hand-tiles .tile');
-                handTiles.forEach(tileEl => {
-                    tileEl.style.display = '';
+                this.handLines.forEach(line => {
+                    const tiles = line.querySelectorAll('.tile');
+                    tiles.forEach(tileEl => {
+                        tileEl.style.display = '';
+                    });
                 });
                 
                 this.updateBoard();
