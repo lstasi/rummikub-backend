@@ -399,8 +399,8 @@
             </div>
 
             <div class="form-group">
-                <label for="invite-code">Game ID (to join existing game):</label>
-                <input type="text" id="invite-code" placeholder="game-uuid-1234" 
+                <label for="invite-code">Game ID (UUID to join existing game):</label>
+                <input type="text" id="invite-code" placeholder="a1b2c3d4-e5f6-7890-abcd-ef1234567890" 
                        style="text-transform: none">
             </div>
 
@@ -650,7 +650,7 @@
                 this.setupScreen = document.getElementById('setup-screen');
                 this.gameScreen = document.getElementById('game-screen');
                 this.playerNameInput = document.getElementById('player-name');
-                this.inviteCodeInput = document.getElementById('invite-code');
+                this.gameIdInput = document.getElementById('invite-code');
                 this.joinGameBtn = document.getElementById('join-game-btn');
                 this.createGameBtn = document.getElementById('create-game-btn');
                 this.statusMessage = document.getElementById('status-message');
@@ -720,11 +720,6 @@
                 this.joinCreatedGameBtn.addEventListener('click', () => this.joinCreatedGame());
                 this.createAnotherBtn.addEventListener('click', () => this.showSetupScreen());
 
-                // Auto-uppercase invite code
-                this.inviteCodeInput.addEventListener('input', (e) => {
-                    e.target.value = e.target.value.toUpperCase();
-                });
-
                 // Drag and drop for board
                 this.boardArea.addEventListener('dragover', this.handleDragOver.bind(this));
                 this.boardArea.addEventListener('drop', this.handleBoardDrop.bind(this));
@@ -744,7 +739,7 @@
                             this.refreshGame();
                         } else if (!this.loginScreen.classList.contains('hidden')) {
                             this.authenticateAdmin();
-                        } else if (this.playerNameInput.value && this.inviteCodeInput.value) {
+                        } else if (this.playerNameInput.value && this.gameIdInput.value) {
                             this.joinGame();
                         }
                     }
@@ -766,7 +761,7 @@
                 }
                 
                 if (gameIdParam) {
-                    this.inviteCodeInput.value = gameIdParam.toUpperCase();
+                    this.gameIdInput.value = gameIdParam;
                 }
                 
                 // If both parameters are present, automatically join the game
@@ -955,7 +950,7 @@
 
             async joinCreatedGame() {
                 const gameId = this.createdGameId.textContent;
-                this.inviteCodeInput.value = gameId;
+                this.gameIdInput.value = gameId;
                 this.showSetupScreen();
                 setTimeout(() => this.joinGame(), 500);
             }
@@ -1013,7 +1008,7 @@
             async joinGame() {
                 console.log('=== Starting game join process ===');
                 this.playerName = this.playerNameInput.value.trim();
-                const gameId = this.inviteCodeInput.value.trim();
+                const gameId = this.gameIdInput.value.trim();
                 console.log(`Player "${this.playerName}" attempting to join game: ${gameId}`);
 
                 if (!this.playerName || !gameId) {
@@ -1099,6 +1094,8 @@
                     this.showMessage(`Failed to refresh game: ${error.message}`, 'error');
                 }
             }
+
+            updateGameUI() {
                 if (!this.gameState) return;
 
                 // Update game info
