@@ -1480,25 +1480,93 @@
             }
 
             addTileToBoard(tile) {
-                // For now, create single-tile combination
-                // In future, could implement logic to add to existing combinations
-                const newCombination = {
-                    id: 'pending-' + Date.now(),
-                    tiles: [tile]
-                };
+                // Check if this tile can be added to an existing pending combination
+                const bestCombination = this.findBestCombinationForTile(tile);
                 
-                this.pendingTiles.push(newCombination);
+                if (bestCombination) {
+                    // Add tile to existing combination (magnetic behavior)
+                    bestCombination.tiles.push(tile);
+                    
+                    // Show magnetic effect on the combination
+                    setTimeout(() => {
+                        const combEl = document.querySelector(`[data-combination-id="${bestCombination.id}"]`);
+                        if (combEl) {
+                            combEl.classList.add('highlighted');
+                            setTimeout(() => combEl.classList.remove('highlighted'), 1000);
+                        }
+                    }, 100);
+                    
+                    this.showMessage('Tile snapped to combination! ✨', 'success');
+                } else {
+                    // Create a new single-tile combination
+                    const newCombination = {
+                        id: 'pending-' + Date.now(),
+                        tiles: [tile]
+                    };
+                    
+                    this.pendingTiles.push(newCombination);
+                    this.showMessage('Tile placed on board. Use "Next Turn" to confirm or "Reset Board" to undo.', 'info');
+                }
                 
-                // Remove tile from hand visually (it's still in gameState until confirmed)
+                // Remove tile from hand DOM completely (it's still in gameState until confirmed)
                 const tileEl = document.querySelector(`[data-tile-id="${tile.id}"]`);
-                if (tileEl) {
-                    tileEl.style.display = 'none';
+                if (tileEl && tileEl.parentElement) {
+                    tileEl.remove();
                 }
                 
                 this.updateBoard();
                 this.updateButtonStates();
+            }
+            
+            findBestCombinationForTile(newTile) {
+                // Check each pending combination to see if the new tile can be added
+                for (const combination of this.pendingTiles) {
+                    const testTiles = [...combination.tiles, newTile];
+                    
+                    // Check if adding this tile creates a valid combination
+                    if (RummikubRulesEngine.isValidCombination(testTiles)) {
+                        return combination;
+                    }
+                    
+                    // Also check if it creates a valid partial combination (2+ tiles that could become valid)
+                    if (testTiles.length >= 2 && this.isValidPartialCombination(testTiles)) {
+                        return combination;
+                    }
+                }
                 
-                this.showMessage('Tile placed on board. Use "Next Turn" to confirm or "Reset Board" to undo.', 'info');
+                return null;
+            }
+            
+            isValidPartialCombination(tiles) {
+                // Allow partial combinations that could become valid with more tiles
+                if (tiles.length < 2) return false;
+                
+                // Check if it's a partial run (same color, consecutive or near-consecutive numbers)
+                const colors = new Set();
+                const numbers = [];
+                
+                for (const tile of tiles) {
+                    if (!tile.is_joker) {
+                        colors.add(tile.color);
+                        numbers.push(tile.number);
+                    }
+                }
+                
+                // Must be same color for runs
+                if (colors.size === 1 && numbers.length >= 2) {
+                    numbers.sort((a, b) => a - b);
+                    const gap = numbers[numbers.length - 1] - numbers[0];
+                    // Allow gaps up to the number of tiles (accounting for jokers)
+                    if (gap <= tiles.length) return true;
+                }
+                
+                // Check if it's a partial group (same number, different colors)
+                const uniqueNumbers = new Set(numbers);
+                if (uniqueNumbers.size === 1 && colors.size === tiles.filter(t => !t.is_joker).length) {
+                    return true;
+                }
+                
+                return false;
             }
 
             updateButtonStates() {
@@ -1545,11 +1613,8 @@
                     }
                 }
                 
-                // Show tile back in hand
-                const tileEl = document.querySelector(`[data-tile-id="${tileId}"]`);
-                if (tileEl && tileEl.style.display === 'none') {
-                    tileEl.style.display = '';
-                }
+                // The tile will be recreated in the hand by updateHand()
+                // No need to manually show/hide - updateHand() recreates all tiles from gameState
                 
                 this.updateBoard();
                 this.updateHand(); // Re-render hand to reflect changes
@@ -1703,14 +1768,8 @@
                 // Clear all pending tiles
                 this.pendingTiles = [];
                 
-                // Show all hand tiles again
-                this.handLines.forEach(line => {
-                    const tiles = line.querySelectorAll('.tile');
-                    tiles.forEach(tileEl => {
-                        tileEl.style.display = '';
-                    });
-                });
-                
+                // Regenerate hand from game state (tiles will be recreated)
+                this.updateHand();
                 this.updateBoard();
                 this.updateButtonStates();
                 this.showMessage('Board reset!', 'success');
