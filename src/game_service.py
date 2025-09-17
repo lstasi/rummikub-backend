@@ -6,12 +6,15 @@ from .models import (
     Game, Player, Tile, TileColor, Combination, GameStatus, 
     PlayerStatus, GameState, GameAction, ActionResponse
 )
+from .redis_storage import RedisStorage
 
 
 class GameService:
     def __init__(self):
-        self.games: Dict[str, Game] = {}
-        self.sessions: Dict[str, Dict[str, str]] = {}  # session_id -> {game_id, player_id}
+        # Initialize Redis storage
+        self.storage = RedisStorage()
+        
+        # Keep in-memory locks and counters for concurrency control
         self.game_locks: Dict[str, threading.Lock] = {}  # game_id -> lock for concurrency control
         self.action_counters: Dict[str, int] = {}  # game_id -> action counter for detecting race conditions
 
@@ -32,6 +35,25 @@ class GameService:
         random.shuffle(tiles)
         return tiles
 
+    def _store_game(self, game: Game) -> bool:
+        """Store a game in Redis."""
+        return self.storage.set_json(f"game:{game.id}", game.model_dump())
+    
+    def _load_game(self, game_id: str) -> Optional[Game]:
+        """Load a game from Redis."""
+        game_data = self.storage.get_json(f"game:{game_id}")
+        if game_data:
+            return Game.model_validate(game_data)
+        return None
+    
+    def _store_session(self, session_id: str, game_id: str, player_id: str) -> bool:
+        """Store a session mapping in Redis."""
+        return self.storage.set_json(f"session:{session_id}", {"game_id": game_id, "player_id": player_id})
+    
+    def _load_session(self, session_id: str) -> Optional[Dict[str, str]]:
+        """Load a session mapping from Redis."""
+        return self.storage.get_json(f"session:{session_id}")
+
     def generate_invite_code(self) -> str:
         """Generate a random 6-character invite code."""
         return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -44,7 +66,8 @@ class GameService:
             max_players=max_players
         )
         
-        self.games[game.id] = game
+        # Store game in Redis
+        self._store_game(game)
         # Initialize concurrency control for this game
         self.game_locks[game.id] = threading.Lock()
         self.action_counters[game.id] = 0
@@ -52,9 +75,12 @@ class GameService:
 
     def find_game_by_invite_code(self, invite_code: str) -> Optional[Game]:
         """Find a game by its invite code."""
-        for game in self.games.values():
-            if game.invite_code == invite_code:
-                return game
+        # Get all game keys from Redis
+        game_keys = self.storage.keys("game:*")
+        for key in game_keys:
+            game_data = self.storage.get_json(key)
+            if game_data and game_data.get("invite_code") == invite_code:
+                return Game.model_validate(game_data)
         return None
 
     def join_game_by_id(self, game_id: str, player_name: str) -> tuple[Optional[Game], Optional[Player], str]:
@@ -63,7 +89,7 @@ class GameService:
         For multi-screen access: allows re-joining with same name if game is in progress.
         Returns (game, player, message)
         """
-        game = self.games.get(game_id)
+        game = self._load_game(game_id)
         if not game:
             return None, None, "Game not found"
         
@@ -109,6 +135,8 @@ class GameService:
                 for p in game.players:
                     p.status = PlayerStatus.PLAYING
             
+            # Save updated game to Redis
+            self._store_game(game)
             return game, player, "Successfully joined game"
         
         return None, None, "Unable to join game"
@@ -116,13 +144,14 @@ class GameService:
     def _generate_session_id(self) -> str:
         """Generate a unique session ID."""
         session_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-        while session_id in self.sessions:
+        # Check Redis for session existence
+        while self.storage.exists(f"session:{session_id}"):
             session_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
         return session_id
 
     def get_game_state_by_player(self, game_id: str, player_id: str) -> Optional[GameState]:
         """Get game state for a specific player by player ID."""
-        game = self.games.get(game_id)
+        game = self._load_game(game_id)
         if not game:
             return None
         
@@ -159,7 +188,7 @@ class GameService:
 
     def perform_action_by_player(self, game_id: str, player_id: str, action: GameAction, session_id: str = None) -> ActionResponse:
         """Perform a game action by player ID with concurrency control for multi-screen access."""
-        game = self.games.get(game_id)
+        game = self._load_game(game_id)
         if not game:
             return ActionResponse(success=False, message="Game not found")
         
@@ -171,7 +200,7 @@ class GameService:
         # Use lock to prevent race conditions between multiple sessions
         with game_lock:
             # Re-check game state after acquiring lock (it might have changed)
-            game = self.games.get(game_id)
+            game = self._load_game(game_id)
             if not game:
                 return ActionResponse(success=False, message="Game not found")
             
@@ -240,6 +269,9 @@ class GameService:
         else:
             game.next_turn()
         
+        # Save updated game to Redis
+        self._store_game(game)
+        
         game_state = self.get_game_state_by_player(game.id, player.id)
         return ActionResponse(
             success=True, 
@@ -258,6 +290,9 @@ class GameService:
         
         # End turn
         game.next_turn()
+        
+        # Save updated game to Redis
+        self._store_game(game)
         
         game_state = self.get_game_state_by_player(game.id, player.id)
         return ActionResponse(
@@ -285,8 +320,8 @@ class GameService:
 
     def get_game_by_id(self, game_id: str) -> Optional[Game]:
         """Get a game by its ID."""
-        return self.games.get(game_id)
+        return self._load_game(game_id)
 
     def validate_session(self, session_id: str) -> Optional[Dict[str, str]]:
         """Validate a session and return session info."""
-        return self.sessions.get(session_id)
+        return self._load_session(session_id)
