@@ -149,7 +149,7 @@
       "name": "Rummikub Backend API",
       "url": "https://github.com/lstasi/rummikub-backend"
     },
-    "description": "\nA Python-based REST API for playing Rummikub online. This backend provides game logic, \nsession management, and all necessary endpoints to play Rummikub without requiring user registration.\n\n## Features\n- Complete Rummikub game logic implementation\n- Session-based authentication (no user registration required)\n- Invite code system for joining games\n- In-memory database for fast gameplay\n- RESTful API with comprehensive game state management\n\n## Authentication\nGame creation requires basic authentication:\n- Username: `admin`\n- Password: `rummikub2024`\n\nAll other game operations use session-based authentication with session IDs.\n",
+    "description": "\nA Python-based REST API for playing Rummikub online. This backend provides game logic, \nsession management, and all necessary endpoints to play Rummikub without requiring user registration.\n\n## Features\n- Complete Rummikub game logic implementation\n- Session-based authentication (no user registration required)\n- Invite code system for joining games\n- In-memory database for fast gameplay\n- RESTful API with comprehensive game state management\n\n## Authentication\nGame creation requires basic authentication:\n- Username: `admin`\n- Password: `admin` (configurable via `ADMIN_PASSWORD` environment variable)\n\nAll other game operations use session-based authentication with session IDs.\n",
     "license": {
       "name": "MIT License"
     },
@@ -182,7 +182,7 @@
     },
     "/game": {
       "post": {
-        "description": "Create a new game. Requires authentication.\n\nReturns game ID that players can use to join the game.\nThe game will be in 'waiting' status until players join.\n\n**Authentication Required**: Basic Auth (admin:rummikub2024)",
+        "description": "Create a new game. Requires authentication.\n\nReturns game ID that players can use to join the game.\nThe game will be in 'waiting' status until players join.\n\n**Authentication Required**: Basic Auth (admin:admin)",
         "operationId": "create_game_game_post",
         "requestBody": {
           "content": {

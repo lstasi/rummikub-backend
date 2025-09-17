@@ -1151,7 +1151,7 @@
 
                 // For now, just check hardcoded credentials
                 // In a real app, this would validate against the server
-                if (username === 'admin' && password === 'rummikub2024') {
+                if (username === 'admin' && password === 'admin') {
                     this.showMessage('Login successful!', 'success');
                     setTimeout(() => this.showConfigScreen(), 1000);
                 } else {
@@ -1187,7 +1187,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': 'Basic ' + btoa('admin:rummikub2024')
+                            'Authorization': 'Basic ' + btoa('admin:admin')
                         },
                         body: JSON.stringify({ 
                             name: 'Admin',  // Default name for API

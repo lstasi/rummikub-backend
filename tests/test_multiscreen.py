@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 BASE_URL = "http://localhost:8090"
 ADMIN_USER = "admin"
-ADMIN_PASS = "rummikub2024"
+ADMIN_PASS = "admin"
 
 
 def create_auth_header():

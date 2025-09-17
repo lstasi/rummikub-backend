@@ -13,7 +13,7 @@ import sys
 
 BASE_URL = "http://localhost:8090"
 ADMIN_USER = "admin"
-DEFAULT_PASS = "rummikub2024"
+DEFAULT_PASS = "admin"
 CUSTOM_PASS = "custom_test_password_123"
 
 
@@ -27,7 +27,7 @@ def create_auth_header(password):
 def test_game_creation_with_password(password, should_succeed=True):
     """Test game creation with a specific password."""
     auth_headers = create_auth_header(password)
-    game_data = {"max_players": 2}
+    game_data = {"max_players": 2, "name": "TestCreator"}
     
     try:
         response = requests.post(f"{BASE_URL}/game", json=game_data, headers=auth_headers)
