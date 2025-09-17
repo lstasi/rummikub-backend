@@ -197,21 +197,28 @@ The project uses minimal dependencies for optimal performance:
 
 ```
 rummikub-backend/
-├── main.py              # FastAPI application
-├── models.py            # Pydantic models and data structures
-├── game_service.py      # Game logic and business rules
-├── generate_openapi.py  # Script to generate OpenAPI specification
+├── main.py              # Entry point (imports from src/)
+├── src/                 # Core application code
+│   ├── __init__.py      # Package initialization  
+│   ├── main.py          # FastAPI application
+│   ├── models.py        # Pydantic models and data structures
+│   └── game_service.py  # Game logic and business rules
+├── scripts/             # Utility scripts
+│   ├── generate_openapi.py # Script to generate OpenAPI specification
+│   └── demo_multiscreen.py # Multi-screen demonstration script
+├── tests/               # Test files
+│   ├── test_api.py      # API testing script
+│   ├── test_actions.py  # Game action tests
+│   ├── test_openapi.py  # OpenAPI validation tests
+│   ├── test_env_password.py # Environment password tests
+│   ├── test_edge_cases.py # Edge case testing
+│   └── test_multiscreen.py # Multi-screen testing
+├── static/              # Static web files
+│   ├── index.html       # Main web interface
+│   └── rules.html       # Game rules page
 ├── openapi.json         # OpenAPI 3.1.0 specification (generated)
 ├── requirements.txt     # Python dependencies
 ├── Makefile            # Build automation and testing
-├── static/             # Static web files
-│   ├── index.html      # Main web interface
-│   └── rules.html      # Game rules page
-├── tests/              # Test files
-│   ├── test_api.py     # API testing script
-│   ├── test_actions.py # Game action tests
-│   ├── test_openapi.py # OpenAPI validation tests
-│   └── test_env_password.py # Environment password tests
 ├── Dockerfile          # Docker container configuration
 ├── docker-compose.yml  # Docker compose for easy deployment
 ├── RUMMIKUB_RULES.md   # Complete game rules
@@ -221,9 +228,9 @@ rummikub-backend/
 ## Development
 
 ### Adding New Features
-1. Update models in `models.py` if needed
-2. Implement logic in `game_service.py`
-3. Add API endpoints in `main.py`
+1. Update models in `src/models.py` if needed
+2. Implement logic in `src/game_service.py`
+3. Add API endpoints in `src/main.py`
 4. Test with scripts in `tests/` directory
 
 ### Contributing

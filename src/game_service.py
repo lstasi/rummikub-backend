@@ -2,7 +2,7 @@ import random
 import string
 import threading
 from typing import List, Optional, Dict
-from models import (
+from .models import (
     Game, Player, Tile, TileColor, Combination, GameStatus, 
     PlayerStatus, GameState, GameAction, ActionResponse
 )

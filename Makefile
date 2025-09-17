@@ -7,13 +7,15 @@ all: test
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf __pycache__/
+	@rm -rf src/__pycache__/
 	@rm -rf tests/__pycache__/
+	@rm -rf scripts/__pycache__/
 	@echo "✅ Build artifacts cleaned"
 
 # Run tests
 test:
 	@echo "Running tests..."
-	@python -m py_compile *.py tests/*.py
+	@python -m py_compile main.py src/*.py tests/*.py scripts/*.py
 	@cd tests && python test_api.py
 	@cd tests && python test_actions.py
 	@cd tests && python test_openapi.py
