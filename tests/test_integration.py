@@ -511,12 +511,32 @@ class NPCPlayer:
         analysis = self.analyze_tiles(tiles)
         
         # If player has many tiles (15+), prioritize placing ANY valid combination
-        high_tile_count = len(tiles) >= 15
+        # If player has few tiles (7 or less), try to go for the win
+        tile_count = len(tiles)
+        high_tile_count = tile_count >= 15
+        low_tile_count = tile_count <= 7
         
         # Try to find the combination that places the most tiles
         best_combination = None
         best_value = 0
         best_tiles_count = 0
+        
+        # For low tile count, try to place ALL remaining tiles if possible
+        if low_tile_count and has_initial_meld:
+            # Try to create a single combination with all tiles
+            if self._can_make_single_combination(tiles):
+                return GameAction(
+                    action_type="place_tiles",
+                    tiles=[tile.id for tile in tiles]
+                )
+            
+            # Try to create multiple combinations that use most tiles
+            multi_combo_tiles = self._find_multi_combination_solution(tiles)
+            if multi_combo_tiles and len(multi_combo_tiles) >= tile_count - 2:
+                return GameAction(
+                    action_type="place_tiles", 
+                    tiles=[tile.id for tile in multi_combo_tiles]
+                )
         
         # Check potential groups
         for combo in analysis['potential_combinations']:
@@ -611,6 +631,48 @@ class NPCPlayer:
         
         # If no good combination found, draw a tile
         return GameAction(action_type="draw_tile")
+    
+    def _can_make_single_combination(self, tiles: List[Tile]) -> bool:
+        """Check if all tiles can form a single valid combination."""
+        if len(tiles) < 3:
+            return False
+        
+        combination = Combination(tiles=tiles)
+        return combination.is_valid()
+    
+    def _find_multi_combination_solution(self, tiles: List[Tile]) -> List[Tile]:
+        """Try to find multiple combinations that use most tiles."""
+        # This is a simplified approach - could be more sophisticated
+        used_tiles = []
+        remaining_tiles = tiles[:]
+        
+        # Keep trying to make combinations until we can't
+        while len(remaining_tiles) >= 3:
+            found_combo = False
+            
+            # Try all possible 3-tile combinations
+            for i in range(len(remaining_tiles)):
+                for j in range(i+1, len(remaining_tiles)):
+                    for k in range(j+1, len(remaining_tiles)):
+                        test_tiles = [remaining_tiles[i], remaining_tiles[j], remaining_tiles[k]]
+                        combo = Combination(tiles=test_tiles)
+                        
+                        if combo.is_valid():
+                            used_tiles.extend(test_tiles)
+                            # Remove used tiles from remaining (in reverse order to maintain indices)
+                            for idx in sorted([k, j, i], reverse=True):
+                                remaining_tiles.pop(idx)
+                            found_combo = True
+                            break
+                    if found_combo:
+                        break
+                if found_combo:
+                    break
+            
+            if not found_combo:
+                break
+        
+        return used_tiles
     
     def make_move(self, game_service: GameService, game_id: str, tiles: List[Tile], 
                   has_initial_meld: bool, board: List[Combination]) -> ActionResponse:
