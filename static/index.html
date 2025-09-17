@@ -257,7 +257,7 @@
         }
 
         .board-container {
-            margin-bottom: 100px; /* Make room for fixed buttons */
+            margin-bottom: 120px; /* Make room for fixed buttons */
         }
 
         .status-message {
@@ -511,15 +511,18 @@
         }
 
         .hand-line {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 55px);
             gap: 8px;
             min-height: 70px;
+            max-height: 70px;
             padding: 10px;
             background: #f8f9fa;
             border-radius: 8px;
             border: 2px dashed #dee2e6;
             transition: all 0.3s ease;
+            align-content: start;
+            overflow: hidden;
         }
 
         .hand-line.drag-over {
@@ -535,6 +538,24 @@
             align-items: center;
             justify-content: center;
             height: 50px;
+            grid-column: 1 / -1;
+        }
+
+        /* Tile placeholder for empty spaces */
+        .tile-placeholder {
+            width: 45px;
+            height: 60px;
+            border: 2px dashed #dee2e6;
+            border-radius: 6px;
+            background: transparent;
+            opacity: 0.3;
+            transition: opacity 0.2s ease;
+        }
+
+        .tile-placeholder:hover,
+        .hand-line.drag-over .tile-placeholder {
+            opacity: 0.6;
+            border-color: #667eea;
         }
     </style>
 </head>
@@ -1369,9 +1390,18 @@
             updateHand() {
                 // Clear all hand lines
                 this.handLines.forEach(line => line.innerHTML = '');
-                this.handCount.textContent = this.gameState.your_tiles.length;
+                
+                // Get list of tiles currently in pending combinations
+                const tilesInPending = new Set();
+                this.pendingTiles.forEach(combo => {
+                    combo.tiles.forEach(tile => tilesInPending.add(tile.id));
+                });
+                
+                // Only display tiles that are not in pending combinations
+                const availableTiles = this.gameState.your_tiles.filter(tile => !tilesInPending.has(tile.id));
+                this.handCount.textContent = availableTiles.length;
 
-                this.gameState.your_tiles.forEach(tile => {
+                availableTiles.forEach(tile => {
                     const tileEl = this.createTileElement(tile, true);
                     
                     // Get tile position or default to line 1
@@ -1379,6 +1409,25 @@
                     const targetLine = this.handLines[position.line - 1];
                     
                     targetLine.appendChild(tileEl);
+                });
+                
+                // Add placeholders to show available spaces in each line
+                this.addTilePlaceholders();
+            }
+
+            addTilePlaceholders() {
+                // Add 3-5 placeholders to each line to show available spaces
+                this.handLines.forEach(line => {
+                    const currentTiles = line.children.length;
+                    const maxPlaceholders = 5;
+                    
+                    // Add placeholders up to maxPlaceholders, but only if there are fewer tiles than that
+                    for (let i = currentTiles; i < Math.max(currentTiles + 2, maxPlaceholders); i++) {
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'tile-placeholder';
+                        placeholder.setAttribute('data-placeholder', 'true');
+                        line.appendChild(placeholder);
+                    }
                 });
             }
 
