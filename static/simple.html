@@ -281,6 +281,15 @@
         .secondary-btn:hover {
             background: #7f8c8d;
         }
+
+        .success-btn {
+            background: #2ecc71;
+            font-weight: bold;
+        }
+
+        .success-btn:hover {
+            background: #27ae60;
+        }
     </style>
 </head>
 <body>
@@ -389,10 +398,15 @@
             <div class="game-section">
                 <div class="section-title">Game Actions</div>
                 <div class="actions-panel">
+                    <!-- UI-Only Operations -->
                     <button id="push-to-board-btn" class="primary-btn" disabled>Push to Board</button>
                     <button id="remove-from-board-btn" class="danger-btn" disabled>Remove from Board</button>
-                    <button id="combine-set-btn" class="primary-btn" disabled>Combine & Validate</button>
+                    <button id="combine-tiles-btn" class="primary-btn" disabled>Combine Tiles</button>
+                    <button id="break-set-btn" class="danger-btn" disabled>Break Set</button>
+                    <button id="reset-board-btn" class="secondary-btn" disabled>Reset Board</button>
+                    <!-- Server Operations -->
                     <button id="draw-tile-btn">Draw Tile</button>
+                    <button id="next-turn-btn" class="success-btn" disabled>Next Turn</button>
                     <button id="auto-refresh-btn" class="auto-refresh">Auto Refresh: OFF</button>
                 </div>
                 <div id="game-message" class="message hidden"></div>
@@ -412,6 +426,11 @@
                 this.initialGameState = null; // Store initial state for reset
                 this.autoRefresh = false;
                 this.refreshInterval = null;
+                
+                // New state management for local operations
+                this.tilesPlacedThisTurn = []; // Track tiles moved to board this turn
+                this.pendingBoardState = null; // Track pending board changes
+                this.turnStartBoardState = null; // Store board state at turn start
                 
                 this.initializeElements();
                 this.setupEventListeners();
@@ -449,8 +468,11 @@
                 // Action buttons
                 this.pushToBoardBtn = document.getElementById('push-to-board-btn');
                 this.removeFromBoardBtn = document.getElementById('remove-from-board-btn');
-                this.combineSetBtn = document.getElementById('combine-set-btn');
+                this.combineTilesBtn = document.getElementById('combine-tiles-btn');
+                this.breakSetBtn = document.getElementById('break-set-btn');
+                this.resetBoardBtn = document.getElementById('reset-board-btn');
                 this.drawTileBtn = document.getElementById('draw-tile-btn');
+                this.nextTurnBtn = document.getElementById('next-turn-btn');
                 this.autoRefreshBtn = document.getElementById('auto-refresh-btn');
                 this.gameMessage = document.getElementById('game-message');
             }
@@ -463,8 +485,11 @@
                 
                 this.pushToBoardBtn.addEventListener('click', () => this.pushToBoard());
                 this.removeFromBoardBtn.addEventListener('click', () => this.removeFromBoard());
-                this.combineSetBtn.addEventListener('click', () => this.combineAndValidateSet());
+                this.combineTilesBtn.addEventListener('click', () => this.combineTiles());
+                this.breakSetBtn.addEventListener('click', () => this.breakSet());
+                this.resetBoardBtn.addEventListener('click', () => this.resetBoard());
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
+                this.nextTurnBtn.addEventListener('click', () => this.nextTurn());
                 this.autoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
 
                 // Update game ID input when selection changes
@@ -606,6 +631,9 @@
                     this.sessionId = data.access_token;
                     this.gameState = data.game_state;
                     this.initialGameState = JSON.parse(JSON.stringify(this.gameState)); // Deep copy for reset
+                    
+                    // Store initial turn start state
+                    this.storeTurnStartState();
 
                     this.showMessage(`Successfully joined as ${data.player_name}!`, 'success', this.setupMessage);
                     setTimeout(() => {
@@ -632,6 +660,12 @@
                     }
 
                     this.gameState = await response.json();
+                    
+                    // If it's now our turn and we haven't stored turn start state, store it
+                    if (this.gameState.can_play && this.tilesPlacedThisTurn.length === 0) {
+                        this.storeTurnStartState();
+                    }
+                    
                     this.updateUI();
 
                 } catch (error) {
@@ -646,7 +680,7 @@
                 // Update status
                 this.currentPlayerSpan.textContent = this.gameState.current_player || 'Waiting...';
                 this.canPlaySpan.textContent = this.gameState.can_play ? 'Yes' : 'No';
-                this.handSizeSpan.textContent = this.gameState.your_tiles?.length || 0;
+                this.handSizeSpan.textContent = this.gameState && this.gameState.your_tiles ? this.gameState.your_tiles.length : 0;
                 this.poolCountSpan.textContent = this.calculatePoolCount();
                 this.selectedCountSpan.textContent = this.selectedTiles.length;
 
@@ -658,34 +692,43 @@
 
             calculatePoolCount() {
                 if (!this.gameState) return '~106';
-                const playersCount = this.gameState.players?.length || 0;
-                const boardTiles = this.gameState.board?.reduce((sum, comb) => sum + comb.tiles.length, 0) || 0;
+                const playersCount = this.gameState && this.gameState.players ? this.gameState.players.length : 0;
+                const boardTiles = this.gameState && this.gameState.board ? this.gameState.board.reduce((sum, comb) => sum + comb.tiles.length, 0) : 0;
                 return `~${106 - (playersCount * 14) - boardTiles}`;
             }
 
             updateHand() {
-                if (!this.gameState?.your_tiles) return;
+                if (!this.gameState || !this.gameState.your_tiles) return;
 
                 this.handArea.innerHTML = '';
-                this.gameState.your_tiles.forEach(tile => {
+                
+                // Show only tiles that are in hand (not moved to board locally)
+                const handTiles = this.gameState.your_tiles.filter(tile => 
+                    !this.tilesPlacedThisTurn.includes(tile.id)
+                );
+                
+                handTiles.forEach(tile => {
+                    tile.location = 'hand'; // Ensure location is set
                     const tileEl = this.createTileElement(tile, 'hand');
                     this.handArea.appendChild(tileEl);
                 });
             }
 
             updateBoard() {
-                if (!this.gameState?.board) return;
-
                 this.boardArea.innerHTML = '';
                 
-                this.gameState.board.forEach(combination => {
+                // Use pending board state if available, otherwise use server state
+                const boardToShow = this.pendingBoardState || (this.gameState && this.gameState.board) || [];
+                
+                if (boardToShow.length === 0) {
+                    this.boardArea.innerHTML = '<p style="text-align: center; color: #7f8c8d; margin-top: 180px;">Board combinations will appear here</p>';
+                    return;
+                }
+                
+                boardToShow.forEach(combination => {
                     const combEl = this.createCombinationElement(combination);
                     this.boardArea.appendChild(combEl);
                 });
-
-                if (this.gameState.board.length === 0) {
-                    this.boardArea.innerHTML = '<p style="text-align: center; color: #7f8c8d; margin-top: 180px;">Board combinations will appear here</p>';
-                }
             }
 
             createTileElement(tile, location = 'hand') {
@@ -763,82 +806,215 @@
             }
 
             updateButtonStates() {
-                const canPlay = this.gameState?.can_play || false;
-                const hasHandTiles = this.selectedTiles.filter(t => t.location === 'hand').length > 0;
-                const hasBoardTiles = this.selectedTiles.filter(t => t.location === 'board').length > 0;
-                const hasSelectedHandTiles = hasHandTiles && this.selectedTiles.filter(t => t.location === 'hand').length >= 3;
+                const canPlay = this.gameState && this.gameState.can_play || false;
+                const hasSelectedHandTiles = this.selectedTiles.filter(t => t.location === 'hand').length > 0;
+                const hasSelectedBoardTiles = this.selectedTiles.filter(t => t.location === 'board').length > 0;
+                const hasMinTilesForBoard = this.selectedTiles.filter(t => t.location === 'hand').length >= 3;
+                const hasPendingChanges = this.tilesPlacedThisTurn.length > 0;
 
-                this.pushToBoardBtn.disabled = !canPlay || !hasSelectedHandTiles;
-                this.removeFromBoardBtn.disabled = !canPlay || !hasBoardTiles;
-                this.combineSetBtn.disabled = !canPlay || !hasHandTiles;
-                this.drawTileBtn.disabled = !canPlay;
+                // UI-only buttons
+                this.pushToBoardBtn.disabled = !canPlay || !hasMinTilesForBoard;
+                this.removeFromBoardBtn.disabled = !canPlay || !hasSelectedBoardTiles || this.tilesPlacedThisTurn.length === 0;
+                this.combineTilesBtn.disabled = !canPlay || !hasSelectedBoardTiles;
+                this.breakSetBtn.disabled = !canPlay || !hasSelectedBoardTiles;
+                this.resetBoardBtn.disabled = !canPlay || !hasPendingChanges;
+                
+                // Server operation buttons
+                this.drawTileBtn.disabled = !canPlay || hasPendingChanges; // Can't draw if changes pending
+                this.nextTurnBtn.disabled = !canPlay || !hasPendingChanges; // Can only submit if changes made
             }
 
-            async pushToBoard() {
+            storeTurnStartState() {
+                if (this.gameState) {
+                    this.turnStartBoardState = JSON.parse(JSON.stringify(this.gameState.board));
+                    this.tilesPlacedThisTurn = [];
+                    this.pendingBoardState = JSON.parse(JSON.stringify(this.gameState.board));
+                }
+            }
+
+            pushToBoard() {
                 const handTiles = this.selectedTiles.filter(t => t.location === 'hand');
                 if (handTiles.length < 3) {
                     this.showMessage('Select at least 3 tiles from your hand to place on the board', 'warning');
                     return;
                 }
 
-                // Get tile IDs
-                const tileIds = handTiles.map(t => t.id);
+                // Move tiles to board locally (UI only)
+                handTiles.forEach(tile => {
+                    tile.location = 'board';
+                    this.tilesPlacedThisTurn.push(tile.id);
+                });
 
-                try {
-                    const response = await fetch(`${this.baseUrl}/game/${this.gameId}/action`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${this.sessionId}`
-                        },
-                        body: JSON.stringify({
-                            action_type: 'place_tiles',
-                            tiles: tileIds
-                        })
-                    });
+                // Add as a new combination to pending board state
+                const newCombination = {
+                    id: 'temp-' + Date.now(),
+                    tiles: [...handTiles]
+                };
+                this.pendingBoardState.push(newCombination);
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-
-                    const result = await response.json();
-                    
-                    if (result.success) {
-                        this.selectedTiles = []; // Clear selections
-                        this.selectedCombinations = [];
-                        this.gameState = result.game_state;
-                        this.updateUI();
-                        this.showMessage('Tiles successfully placed on board! Turn completed.', 'success');
-                    } else {
-                        this.showMessage(result.message || 'Failed to place tiles - invalid combination', 'error');
-                    }
-
-                } catch (error) {
-                    console.error('Push to board error:', error);
-                    this.showMessage(`Failed to place tiles: ${error.message}`, 'error');
-                }
+                // Clear selections and update UI
+                this.selectedTiles = [];
+                this.updateUI();
+                this.showMessage(`Pushed ${handTiles.length} tiles to board. Use "Next Turn" to confirm or "Reset Board" to undo.`, 'info');
             }
 
             removeFromBoard() {
                 const boardTiles = this.selectedTiles.filter(t => t.location === 'board');
                 if (boardTiles.length === 0) {
-                    this.showMessage('Select tiles from the board to remove (only tiles you placed this turn)', 'warning');
+                    this.showMessage('Select tiles from the board to remove', 'warning');
                     return;
                 }
 
-                // For now, show a message as this would require tracking which tiles were placed this turn
-                this.showMessage('Remove from board: Only tiles placed in the current turn can be removed. This requires backend support.', 'warning');
+                // Only allow removing tiles that were placed this turn
+                const removableTiles = boardTiles.filter(t => this.tilesPlacedThisTurn.includes(t.id));
+                if (removableTiles.length === 0) {
+                    this.showMessage('You can only remove tiles that you placed this turn', 'warning');
+                    return;
+                }
+
+                // Move tiles back to hand locally (UI only)
+                removableTiles.forEach(tile => {
+                    tile.location = 'hand';
+                    const index = this.tilesPlacedThisTurn.indexOf(tile.id);
+                    if (index > -1) {
+                        this.tilesPlacedThisTurn.splice(index, 1);
+                    }
+                });
+
+                // Remove tiles from pending board state
+                this.pendingBoardState = this.pendingBoardState.map(combination => {
+                    return {
+                        ...combination,
+                        tiles: combination.tiles.filter(t => !removableTiles.some(rt => rt.id === t.id))
+                    };
+                }).filter(combination => combination.tiles.length > 0);
+
+                // Clear selections and update UI
+                this.selectedTiles = [];
+                this.updateUI();
+                this.showMessage(`Removed ${removableTiles.length} tiles from board back to hand`, 'info');
             }
 
-            async combineAndValidateSet() {
-                const handTiles = this.selectedTiles.filter(t => t.location === 'hand');
-                if (handTiles.length < 3) {
-                    this.showMessage('Select at least 3 tiles from your hand to combine and validate', 'warning');
+            combineTiles() {
+                const boardTiles = this.selectedTiles.filter(t => t.location === 'board');
+                if (boardTiles.length < 2) {
+                    this.showMessage('Select at least 2 tiles from the board to combine', 'warning');
                     return;
                 }
 
-                // Get tile IDs
-                const tileIds = handTiles.map(t => t.id);
+                // Find combinations that contain the selected tiles
+                const affectedCombinations = [];
+                const remainingCombinations = [];
+
+                this.pendingBoardState.forEach(combination => {
+                    const hasSelectedTile = combination.tiles.some(tile => 
+                        boardTiles.some(selected => selected.id === tile.id)
+                    );
+                    if (hasSelectedTile) {
+                        affectedCombinations.push(combination);
+                    } else {
+                        remainingCombinations.push(combination);
+                    }
+                });
+
+                // Combine all tiles from affected combinations
+                let allTiles = [];
+                affectedCombinations.forEach(combination => {
+                    allTiles.push(...combination.tiles);
+                });
+
+                // Create new combination with all tiles
+                const newCombination = {
+                    id: 'temp-' + Date.now(),
+                    tiles: allTiles
+                };
+
+                // Update pending board state
+                this.pendingBoardState = [...remainingCombinations, newCombination];
+
+                // Clear selections and update UI
+                this.selectedTiles = [];
+                this.updateUI();
+                this.showMessage(`Combined tiles into a single set of ${allTiles.length} tiles`, 'info');
+            }
+
+            breakSet() {
+                const boardTiles = this.selectedTiles.filter(t => t.location === 'board');
+                if (boardTiles.length === 0) {
+                    this.showMessage('Select tiles from a set on the board to break', 'warning');
+                    return;
+                }
+
+                // Find the combination that contains the selected tiles
+                let targetCombination = null;
+                this.pendingBoardState.forEach(combination => {
+                    const hasSelectedTile = combination.tiles.some(tile => 
+                        boardTiles.some(selected => selected.id === tile.id)
+                    );
+                    if (hasSelectedTile) {
+                        targetCombination = combination;
+                    }
+                });
+
+                if (!targetCombination) {
+                    this.showMessage('Could not find the set containing selected tiles', 'error');
+                    return;
+                }
+
+                // Remove the target combination and create individual tile combinations
+                this.pendingBoardState = this.pendingBoardState.filter(c => c.id !== targetCombination.id);
+
+                // Create separate combinations for each tile
+                targetCombination.tiles.forEach(tile => {
+                    this.pendingBoardState.push({
+                        id: 'temp-' + Date.now() + '-' + tile.id,
+                        tiles: [tile]
+                    });
+                });
+
+                // Clear selections and update UI
+                this.selectedTiles = [];
+                this.updateUI();
+                this.showMessage(`Broke set into ${targetCombination.tiles.length} individual tiles`, 'info');
+            }
+
+            resetBoard() {
+                if (this.tilesPlacedThisTurn.length === 0) {
+                    this.showMessage('No changes to reset', 'info');
+                    return;
+                }
+
+                // Restore tiles placed this turn back to hand
+                this.gameState.your_tiles.forEach(tile => {
+                    if (this.tilesPlacedThisTurn.includes(tile.id)) {
+                        tile.location = 'hand';
+                    }
+                });
+
+                // Reset pending board state to turn start state
+                this.pendingBoardState = JSON.parse(JSON.stringify(this.turnStartBoardState));
+                this.tilesPlacedThisTurn = [];
+
+                // Clear selections and update UI
+                this.selectedTiles = [];
+                this.updateUI();
+                this.showMessage('Board reset to turn start state', 'info');
+            }
+
+            async nextTurn() {
+                if (this.tilesPlacedThisTurn.length === 0) {
+                    this.showMessage('No tiles placed this turn', 'warning');
+                    return;
+                }
+
+                // Local validation: check if board state is consistent
+                if (!this.validateBoardState()) {
+                    this.showMessage('Invalid board state! Please fix combinations or reset board.', 'error');
+                    return;
+                }
+
+                // Get all tiles that were placed this turn
+                const tileIds = this.tilesPlacedThisTurn;
 
                 try {
                     const response = await fetch(`${this.baseUrl}/game/${this.gameId}/action`, {
@@ -860,23 +1036,34 @@
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.selectedTiles = []; // Clear selections
+                        // Clear turn state and update UI
+                        this.tilesPlacedThisTurn = [];
+                        this.selectedTiles = [];
                         this.selectedCombinations = [];
                         this.gameState = result.game_state;
+                        this.storeTurnStartState(); // Store new turn start state
                         this.updateUI();
-                        this.showMessage('Valid combination! Tiles placed on board and turn completed.', 'success');
+                        this.showMessage('Turn completed successfully!', 'success');
                     } else {
-                        this.showMessage(result.message || 'Invalid combination - tiles not placed', 'error');
+                        this.showMessage(result.message || 'Failed to complete turn - server rejected the move', 'error');
                     }
 
                 } catch (error) {
-                    console.error('Combine and validate error:', error);
-                    this.showMessage(`Failed to validate combination: ${error.message}`, 'error');
+                    console.error('Next turn error:', error);
+                    this.showMessage(`Failed to complete turn: ${error.message}`, 'error');
                 }
             }
 
+            validateBoardState() {
+                // Simple validation: check if all combinations have at least 3 tiles
+                // More sophisticated validation could be added here
+                return this.pendingBoardState.every(combination => {
+                    return combination.tiles.length >= 3 || combination.tiles.length === 1; // Allow single tiles temporarily
+                });
+            }
+
             async drawTile() {
-                if (!this.gameState?.can_play) {
+                if (!this.gameState || !this.gameState.can_play) {
                     this.showMessage('Not your turn!', 'warning');
                     return;
                 }
