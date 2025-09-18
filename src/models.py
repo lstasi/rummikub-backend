@@ -151,12 +151,12 @@ class GameState(BaseModel):
 
 
 class JoinGameRequest(BaseModel):
-    player_name: str
+    player_name: Optional[str] = None  # Player names are now auto-assigned
 
 
 class CreateGameRequest(BaseModel):
     max_players: int = Field(default=4, ge=2, le=4)
-    name: str = Field(description="Name of the game creator/admin")
+    name: Optional[str] = Field(default=None, description="Name of the game creator/admin (optional)")
 
 
 class GameAction(BaseModel):

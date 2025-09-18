@@ -83,9 +83,9 @@ class GameService:
                 return Game.model_validate(game_data)
         return None
 
-    def join_game_by_id(self, game_id: str, player_name: str) -> tuple[Optional[Game], Optional[Player], str]:
+    def join_game_by_id(self, game_id: str, player_name: str = None) -> tuple[Optional[Game], Optional[Player], str]:
         """
-        Join a game by game ID and player name.
+        Join a game by game ID. Player names are auto-assigned as P1, P2, P3, P4.
         For multi-screen access: allows re-joining with same name if game is in progress.
         Returns (game, player, message)
         """
@@ -93,32 +93,30 @@ class GameService:
         if not game:
             return None, None, "Game not found"
         
-        # Check if player already exists (for multi-screen re-join)
-        existing_player = None
-        for player in game.players:
-            if player.name == player_name:
-                existing_player = player
-                break
-        
-        # If game is in progress and player exists, allow re-join (multi-screen access)
-        if game.status == GameStatus.IN_PROGRESS and existing_player:
-            return game, existing_player, "Re-joined game for multi-screen access"
+        # If player_name is provided and game is in progress, allow re-join (multi-screen access)
+        if player_name and game.status == GameStatus.IN_PROGRESS:
+            existing_player = None
+            for player in game.players:
+                if player.name == player_name:
+                    existing_player = player
+                    break
+            if existing_player:
+                return game, existing_player, "Re-joined game for multi-screen access"
         
         # If game is finished, don't allow new joins
         if game.status == GameStatus.FINISHED:
             return None, None, "Game has finished"
         
-        # For waiting games, enforce the original rules
+        # For waiting games, auto-assign player names
         if game.status == GameStatus.WAITING:
             if len(game.players) >= game.max_players:
                 return None, None, "Game is full"
             
-            # Check if player name is already taken in waiting games
-            if existing_player:
-                return None, None, "Player name already taken"
+            # Auto-assign player name as P1, P2, P3, P4
+            auto_name = f"P{len(game.players) + 1}"
             
-            # Create new player and add to game
-            player = Player(name=player_name)
+            # Create new player with auto-assigned name
+            player = Player(name=auto_name)
             
             # Deal 14 tiles to the player
             if len(game.tile_pool) >= 14:
@@ -325,3 +323,26 @@ class GameService:
     def validate_session(self, session_id: str) -> Optional[Dict[str, str]]:
         """Validate a session and return session info."""
         return self._load_session(session_id)
+    
+    def list_all_games(self) -> List[Dict[str, any]]:
+        """List all existing games with basic information."""
+        game_keys = self.storage.keys("game:*")
+        games_info = []
+        
+        for key in game_keys:
+            try:
+                game = self._load_game(key.replace("game:", ""))
+                if game:
+                    games_info.append({
+                        "game_id": game.id,
+                        "status": game.status,
+                        "players": [{"name": p.name, "status": p.status} for p in game.players],
+                        "player_count": len(game.players),
+                        "max_players": game.max_players,
+                        "invite_code": game.invite_code
+                    })
+            except Exception as e:
+                # Skip invalid games
+                continue
+                
+        return games_info

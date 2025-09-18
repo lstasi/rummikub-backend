@@ -153,24 +153,36 @@ async def root():
 @app.post("/game", tags=["game-management"])
 async def create_game(
     request: CreateGameRequest,
-    credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)
+    credentials: Optional[HTTPBasicCredentials] = Depends(lambda: None)
 ):
     """
-    Create a new game. Requires authentication.
+    Create a new game. Authentication is now optional.
     
     Returns game ID that players can use to join the game.
     The game will be in 'waiting' status until players join.
     
-    **Authentication Required**: Basic Auth (admin:admin)
+    **Authentication Optional**: Basic Auth (admin:admin) for admin features
     """
-    logger.info(f"Creating new game for creator: {request.name}, max_players: {request.max_players}")
-    game = game_service.create_game(request.max_players, request.name)
+    # If credentials provided, verify them (for admin features)
+    creator_name = "Admin"
+    if credentials:
+        try:
+            verify_admin_credentials(credentials)
+            creator_name = request.name if request.name else "Admin"
+        except:
+            # Invalid credentials but we allow game creation anyway
+            creator_name = request.name if request.name else "Player"
+    else:
+        creator_name = request.name if request.name else "Player"
+    
+    logger.info(f"Creating new game for creator: {creator_name}, max_players: {request.max_players}")
+    game = game_service.create_game(request.max_players, creator_name)
     logger.info(f"Game created successfully with ID: {game.id}")
     
     return {
         "game_id": game.id,
         "max_players": game.max_players,
-        "creator_name": request.name,
+        "creator_name": creator_name,
         "status": game.status,
         "message": "Game created successfully"
     }
@@ -179,14 +191,15 @@ async def create_game(
 @app.post("/game/{game_id}/join", tags=["game-play"])
 async def join_game(game_id: str, request: JoinGameRequest):
     """
-    Join a game using game ID and player name.
+    Join a game using game ID. Player names are auto-assigned as P1, P2, P3, P4.
     
     Returns access token for subsequent requests. The access token must be used
     in all future API calls as a Bearer token in the Authorization header.
     
     The game will automatically start when 2 or more players have joined.
     """
-    logger.info(f"Player '{request.player_name}' attempting to join game: {game_id}")
+    player_name_for_log = request.player_name if request.player_name else "auto-assigned"
+    logger.info(f"Player '{player_name_for_log}' attempting to join game: {game_id}")
     game, player, message = game_service.join_game_by_id(
         game_id, 
         request.player_name
@@ -281,6 +294,23 @@ async def get_game_info(game_id: str):
         "max_players": game.max_players,
         "created_at": game.created_at,
         "players": [{"name": p.name, "status": p.status} for p in game.players]
+    }
+
+
+@app.get("/games", tags=["game-management"])
+async def list_games():
+    """
+    List all existing games.
+    
+    Returns a list of games with basic information like game ID, status,
+    player count, and players. Useful for showing available games to join.
+    
+    **No authentication required.**
+    """
+    games = game_service.list_all_games()
+    return {
+        "games": games,
+        "total_count": len(games)
     }
 
 
