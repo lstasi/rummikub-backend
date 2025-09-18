@@ -73,7 +73,7 @@
             color: #2c3e50;
         }
 
-        input[type="text"], input[type="url"] {
+        input[type="text"], input[type="url"], input[type="password"], select {
             padding: 12px;
             border: 2px solid #bdc3c7;
             border-radius: 5px;
@@ -81,7 +81,7 @@
             width: 300px;
         }
 
-        input[type="text"]:focus, input[type="url"]:focus {
+        input[type="text"]:focus, input[type="url"]:focus, input[type="password"]:focus, select:focus {
             outline: none;
             border-color: #3498db;
         }
@@ -292,7 +292,7 @@
 
         <!-- Setup Screen -->
         <div id="setup-screen" class="game-section">
-            <div class="section-title">Join Game</div>
+            <div class="section-title">Game Setup</div>
             <div class="setup-form">
                 <div class="form-group">
                     <label for="server-url">Server URL:</label>
@@ -307,7 +307,38 @@
                     <input type="text" id="player-name" placeholder="Enter your name" />
                 </div>
                 <button id="join-btn">Join Game</button>
+                <button id="create-game-btn" class="primary-btn">Create New Game</button>
                 <div id="setup-message" class="message hidden"></div>
+            </div>
+        </div>
+
+        <!-- Login Screen for Game Creation -->
+        <div id="login-screen" class="game-section hidden">
+            <div class="section-title">Admin Login</div>
+            <div class="setup-form">
+                <div class="form-group">
+                    <label for="admin-username">Username:</label>
+                    <input type="text" id="admin-username" placeholder="admin" />
+                </div>
+                <div class="form-group">
+                    <label for="admin-password">Password:</label>
+                    <input type="password" id="admin-password" placeholder="admin" />
+                </div>
+                <div class="form-group">
+                    <label for="creator-name">Your Name:</label>
+                    <input type="text" id="creator-name" placeholder="Game Creator" />
+                </div>
+                <div class="form-group">
+                    <label for="max-players">Max Players:</label>
+                    <select id="max-players">
+                        <option value="2">2 Players</option>
+                        <option value="3">3 Players</option>
+                        <option value="4" selected>4 Players</option>
+                    </select>
+                </div>
+                <button id="login-btn" class="primary-btn">Login & Create Game</button>
+                <button id="cancel-login-btn" class="secondary-btn">Cancel</button>
+                <div id="login-message" class="message hidden"></div>
             </div>
         </div>
 
@@ -350,6 +381,12 @@
                         </p>
                     </div>
                     <div>
+                        <div class="section-title">Dashboard</div>
+                        <div class="hand-area" id="dashboard-area" style="background: #fff3cd; border: 2px solid #ffc107;">
+                            <p style="text-align: center; color: #856404; margin-top: 50px;">
+                                Dashboard tiles will appear here
+                            </p>
+                        </div>
                         <div class="section-title">Your Hand</div>
                         <div class="hand-area" id="hand-area">
                             <p style="text-align: center; color: #7f8c8d; margin-top: 100px;">
@@ -364,11 +401,12 @@
             <div class="game-section">
                 <div class="section-title">Game Actions</div>
                 <div class="actions-panel">
-                    <button id="create-combination-btn" class="primary-btn" disabled>Create Combination</button>
-                    <button id="break-combination-btn" class="danger-btn" disabled>Break Combination</button>
-                    <button id="place-tiles-btn" class="primary-btn" disabled>Place Selected Tiles</button>
+                    <button id="push-to-dashboard-btn" class="primary-btn" disabled>Push to Dashboard</button>
+                    <button id="remove-from-dashboard-btn" class="danger-btn" disabled>Remove from Dashboard</button>
+                    <button id="combine-set-btn" class="primary-btn" disabled>Combine Set</button>
+                    <button id="break-set-btn" class="danger-btn" disabled>Break Set</button>
                     <button id="draw-tile-btn">Draw Tile</button>
-                    <button id="reset-board-btn" class="secondary-btn">Reset Board</button>
+                    <button id="reset-board-btn" class="secondary-btn">Reset Turn</button>
                     <button id="auto-refresh-btn" class="auto-refresh">Auto Refresh: OFF</button>
                 </div>
                 <div id="game-message" class="message hidden"></div>
@@ -385,7 +423,8 @@
                 this.gameState = null;
                 this.selectedTiles = [];
                 this.selectedCombinations = [];
-                this.pendingTiles = [];
+                this.dashboardTiles = []; // Tiles currently on the dashboard
+                this.initialGameState = null; // Store initial state for reset
                 this.autoRefresh = false;
                 this.refreshInterval = null;
                 
@@ -396,12 +435,23 @@
             initializeElements() {
                 // Setup screen elements
                 this.setupScreen = document.getElementById('setup-screen');
+                this.loginScreen = document.getElementById('login-screen');
                 this.gameScreen = document.getElementById('game-screen');
                 this.serverUrlInput = document.getElementById('server-url');
                 this.gameIdInput = document.getElementById('game-id');
                 this.playerNameInput = document.getElementById('player-name');
                 this.joinBtn = document.getElementById('join-btn');
+                this.createGameBtn = document.getElementById('create-game-btn');
                 this.setupMessage = document.getElementById('setup-message');
+
+                // Login screen elements
+                this.adminUsernameInput = document.getElementById('admin-username');
+                this.adminPasswordInput = document.getElementById('admin-password');
+                this.creatorNameInput = document.getElementById('creator-name');
+                this.maxPlayersSelect = document.getElementById('max-players');
+                this.loginBtn = document.getElementById('login-btn');
+                this.cancelLoginBtn = document.getElementById('cancel-login-btn');
+                this.loginMessage = document.getElementById('login-message');
 
                 // Game screen elements
                 this.currentPlayerSpan = document.getElementById('current-player');
@@ -411,11 +461,13 @@
                 this.selectedCountSpan = document.getElementById('selected-count');
                 this.boardArea = document.getElementById('board-area');
                 this.handArea = document.getElementById('hand-area');
+                this.dashboardArea = document.getElementById('dashboard-area');
 
                 // Action buttons
-                this.createCombinationBtn = document.getElementById('create-combination-btn');
-                this.breakCombinationBtn = document.getElementById('break-combination-btn');
-                this.placeTilesBtn = document.getElementById('place-tiles-btn');
+                this.pushToDashboardBtn = document.getElementById('push-to-dashboard-btn');
+                this.removeFromDashboardBtn = document.getElementById('remove-from-dashboard-btn');
+                this.combineSetBtn = document.getElementById('combine-set-btn');
+                this.breakSetBtn = document.getElementById('break-set-btn');
                 this.drawTileBtn = document.getElementById('draw-tile-btn');
                 this.resetBoardBtn = document.getElementById('reset-board-btn');
                 this.autoRefreshBtn = document.getElementById('auto-refresh-btn');
@@ -424,19 +476,48 @@
 
             setupEventListeners() {
                 this.joinBtn.addEventListener('click', () => this.joinGame());
-                this.createCombinationBtn.addEventListener('click', () => this.createCombination());
-                this.breakCombinationBtn.addEventListener('click', () => this.breakCombination());
-                this.placeTilesBtn.addEventListener('click', () => this.placeTiles());
+                this.createGameBtn.addEventListener('click', () => this.showLoginScreen());
+                this.loginBtn.addEventListener('click', () => this.createGame());
+                this.cancelLoginBtn.addEventListener('click', () => this.showSetupScreen());
+                
+                this.pushToDashboardBtn.addEventListener('click', () => this.pushToDashboard());
+                this.removeFromDashboardBtn.addEventListener('click', () => this.removeFromDashboard());
+                this.combineSetBtn.addEventListener('click', () => this.combineSet());
+                this.breakSetBtn.addEventListener('click', () => this.breakSet());
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
                 this.resetBoardBtn.addEventListener('click', () => this.resetBoard());
                 this.autoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
 
                 // Handle Enter key in input fields
-                [this.gameIdInput, this.playerNameInput].forEach(input => {
+                [this.gameIdInput, this.playerNameInput, this.adminPasswordInput].forEach(input => {
                     input.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') this.joinGame();
+                        if (e.key === 'Enter') {
+                            if (input === this.adminPasswordInput) {
+                                this.createGame();
+                            } else {
+                                this.joinGame();
+                            }
+                        }
                     });
                 });
+            }
+
+            showSetupScreen() {
+                this.setupScreen.classList.remove('hidden');
+                this.loginScreen.classList.add('hidden');
+                this.gameScreen.classList.add('hidden');
+            }
+
+            showLoginScreen() {
+                this.setupScreen.classList.add('hidden');
+                this.loginScreen.classList.remove('hidden');
+                this.gameScreen.classList.add('hidden');
+            }
+
+            showGameScreen() {
+                this.setupScreen.classList.add('hidden');
+                this.loginScreen.classList.add('hidden');
+                this.gameScreen.classList.remove('hidden');
             }
 
             showMessage(text, type = 'info', element = null) {
@@ -445,6 +526,55 @@
                 messageEl.className = `message ${type}`;
                 messageEl.classList.remove('hidden');
                 setTimeout(() => messageEl.classList.add('hidden'), 5000);
+            }
+
+            async createGame() {
+                const serverUrl = this.serverUrlInput.value.trim();
+                const username = this.adminUsernameInput.value.trim();
+                const password = this.adminPasswordInput.value.trim();
+                const creatorName = this.creatorNameInput.value.trim();
+                const maxPlayers = parseInt(this.maxPlayersSelect.value);
+
+                if (!serverUrl || !username || !password || !creatorName) {
+                    this.showMessage('Please fill in all fields', 'error', this.loginMessage);
+                    return;
+                }
+
+                this.baseUrl = serverUrl;
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/game`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Basic ' + btoa(`${username}:${password}`)
+                        },
+                        body: JSON.stringify({ 
+                            name: creatorName,
+                            max_players: maxPlayers 
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    this.gameId = data.game_id;
+                    this.playerNameInput.value = creatorName;
+                    this.gameIdInput.value = data.game_id;
+                    
+                    this.showMessage(`Game created! ID: ${data.game_id}`, 'success', this.loginMessage);
+                    
+                    setTimeout(() => {
+                        this.showSetupScreen();
+                        setTimeout(() => this.joinGame(), 500);
+                    }, 2000);
+
+                } catch (error) {
+                    console.error('Create game error:', error);
+                    this.showMessage(`Failed to create game: ${error.message}`, 'error', this.loginMessage);
+                }
             }
 
             async joinGame() {
@@ -474,11 +604,11 @@
                     const data = await response.json();
                     this.sessionId = data.access_token;
                     this.gameState = data.game_state;
+                    this.initialGameState = JSON.parse(JSON.stringify(this.gameState)); // Deep copy for reset
 
                     this.showMessage('Successfully joined game!', 'success', this.setupMessage);
                     setTimeout(() => {
-                        this.setupScreen.classList.add('hidden');
-                        this.gameScreen.classList.remove('hidden');
+                        this.showGameScreen();
                         this.updateUI();
                     }, 1000);
 
@@ -519,13 +649,10 @@
                 this.poolCountSpan.textContent = this.calculatePoolCount();
                 this.selectedCountSpan.textContent = this.selectedTiles.length;
 
-                // Update hand
+                // Update areas
                 this.updateHand();
-                
-                // Update board
+                this.updateDashboard();
                 this.updateBoard();
-
-                // Update button states
                 this.updateButtonStates();
             }
 
@@ -541,9 +668,21 @@
 
                 this.handArea.innerHTML = '';
                 this.gameState.your_tiles.forEach(tile => {
-                    const tileEl = this.createTileElement(tile, true);
+                    const tileEl = this.createTileElement(tile, 'hand');
                     this.handArea.appendChild(tileEl);
                 });
+            }
+
+            updateDashboard() {
+                this.dashboardArea.innerHTML = '';
+                if (this.dashboardTiles.length === 0) {
+                    this.dashboardArea.innerHTML = '<p style="text-align: center; color: #856404; margin-top: 50px;">Dashboard tiles will appear here</p>';
+                } else {
+                    this.dashboardTiles.forEach(tile => {
+                        const tileEl = this.createTileElement(tile, 'dashboard');
+                        this.dashboardArea.appendChild(tileEl);
+                    });
+                }
             }
 
             updateBoard() {
@@ -551,28 +690,21 @@
 
                 this.boardArea.innerHTML = '';
                 
-                // Add existing board combinations
                 this.gameState.board.forEach(combination => {
                     const combEl = this.createCombinationElement(combination);
                     this.boardArea.appendChild(combEl);
                 });
 
-                // Add pending combinations
-                this.pendingTiles.forEach(combination => {
-                    const combEl = this.createCombinationElement(combination, true);
-                    this.boardArea.appendChild(combEl);
-                });
-
-                // Show placeholder text only if no combinations at all
-                if (this.gameState.board.length === 0 && this.pendingTiles.length === 0) {
+                if (this.gameState.board.length === 0) {
                     this.boardArea.innerHTML = '<p style="text-align: center; color: #7f8c8d; margin-top: 180px;">Board combinations will appear here</p>';
                 }
             }
 
-            createTileElement(tile, isInHand = false) {
+            createTileElement(tile, location = 'hand') {
                 const tileEl = document.createElement('div');
                 tileEl.className = 'tile';
                 tileEl.dataset.tileId = tile.id;
+                tileEl.dataset.location = location;
 
                 if (tile.is_joker) {
                     tileEl.classList.add('joker');
@@ -582,9 +714,7 @@
                     tileEl.textContent = tile.number;
                 }
 
-                if (isInHand) {
-                    tileEl.addEventListener('click', () => this.toggleTileSelection(tile, tileEl));
-                }
+                tileEl.addEventListener('click', () => this.toggleTileSelection(tile, tileEl, location));
 
                 // Check if tile is selected
                 if (this.selectedTiles.some(t => t.id === tile.id)) {
@@ -594,28 +724,22 @@
                 return tileEl;
             }
 
-            createCombinationElement(combination, isPending = false) {
+            createCombinationElement(combination) {
                 const combEl = document.createElement('div');
                 combEl.className = 'combination';
-                combEl.dataset.combinationId = combination.id || 'pending';
-                
-                if (isPending) {
-                    combEl.style.border = '2px solid #f39c12';
-                }
+                combEl.dataset.combinationId = combination.id;
 
                 combination.tiles.forEach(tile => {
-                    const tileEl = this.createTileElement(tile, false);
+                    const tileEl = this.createTileElement(tile, 'board');
                     combEl.appendChild(tileEl);
                 });
 
-                if (!isPending) {
-                    combEl.addEventListener('click', () => this.toggleCombinationSelection(combination, combEl));
-                }
+                combEl.addEventListener('click', () => this.toggleCombinationSelection(combination, combEl));
 
                 return combEl;
             }
 
-            toggleTileSelection(tile, tileEl) {
+            toggleTileSelection(tile, tileEl, location) {
                 const index = this.selectedTiles.findIndex(t => t.id === tile.id);
                 
                 if (index >= 0) {
@@ -623,9 +747,11 @@
                     this.selectedTiles.splice(index, 1);
                     tileEl.classList.remove('selected');
                 } else {
-                    // Select
-                    this.selectedTiles.push(tile);
-                    tileEl.classList.add('selected');
+                    // Select - only allow selection from hand and dashboard
+                    if (location === 'hand' || location === 'dashboard') {
+                        this.selectedTiles.push({...tile, location});
+                        tileEl.classList.add('selected');
+                    }
                 }
 
                 this.selectedCountSpan.textContent = this.selectedTiles.length;
@@ -650,83 +776,81 @@
 
             updateButtonStates() {
                 const canPlay = this.gameState?.can_play || false;
-                const hasSelectedTiles = this.selectedTiles.length > 0;
+                const hasHandTiles = this.selectedTiles.filter(t => t.location === 'hand').length > 0;
+                const hasDashboardTiles = this.selectedTiles.filter(t => t.location === 'dashboard').length > 0;
                 const hasSelectedCombinations = this.selectedCombinations.length > 0;
-                const hasEnoughForCombination = this.selectedTiles.length >= 3;
+                const dashboardHasEnoughForSet = this.dashboardTiles.length >= 3;
 
-                this.createCombinationBtn.disabled = !canPlay || !hasEnoughForCombination;
-                this.breakCombinationBtn.disabled = !canPlay || !hasSelectedCombinations;
-                this.placeTilesBtn.disabled = !canPlay || this.pendingTiles.length === 0;
-                this.drawTileBtn.disabled = !canPlay;
-                this.resetBoardBtn.disabled = this.pendingTiles.length === 0;
+                this.pushToDashboardBtn.disabled = !canPlay || !hasHandTiles;
+                this.removeFromDashboardBtn.disabled = !canPlay || !hasDashboardTiles;
+                this.combineSetBtn.disabled = !canPlay || !dashboardHasEnoughForSet;
+                this.breakSetBtn.disabled = !canPlay || !hasSelectedCombinations;
+                this.drawTileBtn.disabled = !canPlay || this.dashboardTiles.length > 0;
+                this.resetBoardBtn.disabled = !canPlay || this.dashboardTiles.length === 0;
             }
 
-            createCombination() {
-                if (this.selectedTiles.length < 3) {
-                    this.showMessage('Select at least 3 tiles to create a combination', 'warning');
+            pushToDashboard() {
+                const handTiles = this.selectedTiles.filter(t => t.location === 'hand');
+                if (handTiles.length === 0) {
+                    this.showMessage('Select tiles from your hand to push to dashboard', 'warning');
                     return;
                 }
 
-                // Create a new pending combination
-                const newCombination = {
-                    id: 'pending-' + Date.now(),
-                    tiles: [...this.selectedTiles]
-                };
+                // Move selected tiles from hand to dashboard
+                handTiles.forEach(selectedTile => {
+                    // Remove from hand
+                    const handIndex = this.gameState.your_tiles.findIndex(tile => tile.id === selectedTile.id);
+                    if (handIndex >= 0) {
+                        const tile = this.gameState.your_tiles.splice(handIndex, 1)[0];
+                        this.dashboardTiles.push(tile);
+                    }
 
-                this.pendingTiles.push(newCombination);
-
-                // Remove selected tiles from hand
-                this.selectedTiles.forEach(selectedTile => {
-                    const index = this.gameState.your_tiles.findIndex(tile => tile.id === selectedTile.id);
-                    if (index >= 0) {
-                        this.gameState.your_tiles.splice(index, 1);
+                    // Remove from selection
+                    const selIndex = this.selectedTiles.findIndex(t => t.id === selectedTile.id);
+                    if (selIndex >= 0) {
+                        this.selectedTiles.splice(selIndex, 1);
                     }
                 });
 
-                // Clear selection
-                this.selectedTiles = [];
-                
                 this.updateUI();
-                this.showMessage('Combination created! Use "Place Selected Tiles" to place it on the board.', 'success');
+                this.showMessage(`${handTiles.length} tile(s) moved to dashboard`, 'success');
             }
 
-            breakCombination() {
-                if (this.selectedCombinations.length === 0) {
-                    this.showMessage('Select a combination to break', 'warning');
+            removeFromDashboard() {
+                const dashboardTiles = this.selectedTiles.filter(t => t.location === 'dashboard');
+                if (dashboardTiles.length === 0) {
+                    this.showMessage('Select tiles from the dashboard to remove', 'warning');
                     return;
                 }
 
-                this.selectedCombinations.forEach(combination => {
-                    // Add tiles back to hand
-                    combination.tiles.forEach(tile => {
+                // Move selected tiles from dashboard back to hand
+                dashboardTiles.forEach(selectedTile => {
+                    // Remove from dashboard
+                    const dashIndex = this.dashboardTiles.findIndex(tile => tile.id === selectedTile.id);
+                    if (dashIndex >= 0) {
+                        const tile = this.dashboardTiles.splice(dashIndex, 1)[0];
                         this.gameState.your_tiles.push(tile);
-                    });
+                    }
 
-                    // Remove from pending tiles
-                    const index = this.pendingTiles.findIndex(p => p.id === combination.id);
-                    if (index >= 0) {
-                        this.pendingTiles.splice(index, 1);
+                    // Remove from selection
+                    const selIndex = this.selectedTiles.findIndex(t => t.id === selectedTile.id);
+                    if (selIndex >= 0) {
+                        this.selectedTiles.splice(selIndex, 1);
                     }
                 });
 
-                // Clear selection
-                this.selectedCombinations = [];
-                
                 this.updateUI();
-                this.showMessage('Combination(s) broken! Tiles returned to your hand.', 'success');
+                this.showMessage(`${dashboardTiles.length} tile(s) returned to hand`, 'success');
             }
 
-            async placeTiles() {
-                if (this.pendingTiles.length === 0) {
-                    this.showMessage('No combinations to place', 'warning');
+            async combineSet() {
+                if (this.dashboardTiles.length < 3) {
+                    this.showMessage('Need at least 3 tiles on dashboard to combine into a set', 'warning');
                     return;
                 }
 
-                // Get all tile IDs from pending combinations
-                const tileIds = [];
-                this.pendingTiles.forEach(combo => {
-                    combo.tiles.forEach(tile => tileIds.push(tile.id));
-                });
+                // Get all tile IDs from dashboard
+                const tileIds = this.dashboardTiles.map(tile => tile.id);
 
                 try {
                     const response = await fetch(`${this.baseUrl}/game/${this.gameId}/action`, {
@@ -748,21 +872,38 @@
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.pendingTiles = [];
+                        this.dashboardTiles = []; // Clear dashboard
+                        this.selectedTiles = []; // Clear selections
+                        this.selectedCombinations = [];
                         this.gameState = result.game_state;
                         this.updateUI();
-                        this.showMessage('Turn completed successfully!', 'success');
+                        this.showMessage('Set successfully placed! Turn completed.', 'success');
                     } else {
-                        this.showMessage(result.message || 'Failed to place tiles', 'error');
+                        this.showMessage(result.message || 'Failed to combine set - invalid combination', 'error');
                     }
 
                 } catch (error) {
-                    console.error('Place tiles error:', error);
-                    this.showMessage(`Failed to place tiles: ${error.message}`, 'error');
+                    console.error('Combine set error:', error);
+                    this.showMessage(`Failed to combine set: ${error.message}`, 'error');
                 }
             }
 
+            breakSet() {
+                if (this.selectedCombinations.length === 0) {
+                    this.showMessage('Select a combination on the board to break', 'warning');
+                    return;
+                }
+
+                // For now, just show a message as this would require more complex backend support
+                this.showMessage('Break set functionality would require backend support for rearrangement', 'warning');
+            }
+
             async drawTile() {
+                if (this.dashboardTiles.length > 0) {
+                    this.showMessage('Cannot draw tile while you have tiles on dashboard. Use them or reset first.', 'warning');
+                    return;
+                }
+
                 if (!this.gameState?.can_play) {
                     this.showMessage('Not your turn!', 'warning');
                     return;
@@ -799,25 +940,23 @@
             }
 
             resetBoard() {
-                if (this.pendingTiles.length === 0) {
-                    this.showMessage('No changes to reset', 'warning');
+                if (this.dashboardTiles.length === 0) {
+                    this.showMessage('No dashboard changes to reset', 'warning');
                     return;
                 }
 
-                // Return all pending tiles to hand
-                this.pendingTiles.forEach(combination => {
-                    combination.tiles.forEach(tile => {
-                        this.gameState.your_tiles.push(tile);
-                    });
+                // Return all dashboard tiles to hand
+                this.dashboardTiles.forEach(tile => {
+                    this.gameState.your_tiles.push(tile);
                 });
 
-                // Clear pending tiles and selections
-                this.pendingTiles = [];
+                // Clear dashboard and selections
+                this.dashboardTiles = [];
                 this.selectedTiles = [];
                 this.selectedCombinations = [];
                 
                 this.updateUI();
-                this.showMessage('Board reset! All pending tiles returned to hand.', 'success');
+                this.showMessage('Dashboard reset! All tiles returned to hand.', 'success');
             }
 
             toggleAutoRefresh() {

@@ -135,7 +135,7 @@ def verify_token(authorization: str = Header(...)):
 async def root():
     """Serve the main web interface."""
     try:
-        with open("static/index.html", "r", encoding="utf-8") as f:
+        with open("static/simple.html", "r", encoding="utf-8") as f:
             return f.read()
     except FileNotFoundError:
         return HTMLResponse("""
