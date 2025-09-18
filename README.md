@@ -8,7 +8,7 @@ A Python-based REST API for playing Rummikub online. This backend provides game 
 - 🔐 JWT-based authentication (no user registration required)
 - 🌐 Web interface for playing games in browser
 - 🎫 Simple game joining system with game IDs
-- 🏗️ In-memory database for fast gameplay
+- 🗄️ Redis data storage with volume persistence
 - 🐳 Docker support for easy deployment
 - 📋 RESTful API with comprehensive game state management
 - 📊 Real-time game state updates
@@ -16,6 +16,22 @@ A Python-based REST API for playing Rummikub online. This backend provides game 
 ## Game Rules
 
 See [RUMMIKUB_RULES.md](RUMMIKUB_RULES.md) for complete game rules and gameplay instructions.
+
+## Data Storage
+
+The application uses **Redis** for persistent data storage with Docker volume support:
+
+- **Persistence**: Game data survives container restarts
+- **Performance**: Optimized Redis data structures and caching
+- **Volume Configuration**: Data stored in `redis_data` Docker volume
+- **Fallback Mode**: Automatic fallback to in-memory storage if Redis is unavailable
+
+For detailed Redis setup and volume configuration, see [REDIS_VOLUME_CONFIG.md](REDIS_VOLUME_CONFIG.md).
+
+### Environment Variables
+- `REDIS_HOST`: Redis server hostname (default: `redis`)
+- `REDIS_PORT`: Redis server port (default: `6379`)
+- `REDIS_DB`: Redis database number (default: `0`)
 
 ## API Documentation
 
