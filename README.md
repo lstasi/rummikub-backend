@@ -39,7 +39,7 @@ python generate_openapi.py
 #### Game Creation (Admin Only)
 - **Basic Authentication** required for creating new games:
   - Username: `admin` 
-  - Password: `rummikub2024` (configurable via `ADMIN_PASSWORD` environment variable)
+  - Password: `admin` (configurable via `ADMIN_PASSWORD` environment variable)
 
 #### Game Operations (Players)
 - **JWT Bearer Token** required for all game operations after joining
@@ -101,7 +101,7 @@ make clean         # Clean build artifacts
 ```bash
 curl -X POST "http://localhost:8090/game" \
   -H "Content-Type: application/json" \
-  -u "admin:rummikub2024" \
+  -u "admin:admin" \
   -d '{"max_players": 4, "name": "GameHost"}'
 ```
 
@@ -260,5 +260,5 @@ make test
 # Visit http://localhost:8090/redoc (ReDoc)
 
 # Manual API testing
-curl -u admin:rummikub2024 -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2,"name":"TestHost"}'
+curl -u admin:admin -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2,"name":"TestHost"}'
 ```

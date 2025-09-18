@@ -39,7 +39,7 @@ session management, and all necessary endpoints to play Rummikub without requiri
 ## Authentication
 Game creation requires basic authentication:
 - Username: `admin`
-- Password: `rummikub2024`
+- Password: `admin` (configurable via `ADMIN_PASSWORD` environment variable)
 
 All other game operations use session-based authentication with session IDs.
 """,
@@ -74,7 +74,7 @@ game_service = GameService()
 
 # Hard-coded credentials for game creation
 ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "rummikub2024")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
 JWT_SECRET = "rummikub-jwt-secret-2024"
 JWT_ALGORITHM = "HS256"
 
@@ -161,7 +161,7 @@ async def create_game(
     Returns game ID that players can use to join the game.
     The game will be in 'waiting' status until players join.
     
-    **Authentication Required**: Basic Auth (admin:rummikub2024)
+    **Authentication Required**: Basic Auth (admin:admin)
     """
     logger.info(f"Creating new game for creator: {request.name}, max_players: {request.max_players}")
     game = game_service.create_game(request.max_players, request.name)

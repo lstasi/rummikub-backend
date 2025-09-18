@@ -55,7 +55,7 @@ Should test: game creation, 2 players joining, game starting, turn-based actions
    ```bash
    curl -X POST "http://localhost:8090/game" \
      -H "Content-Type: application/json" \
-     -u "admin:rummikub2024" \
+     -u "admin:admin" \
      -d '{"max_players": 4}'
    ```
 3. **Join game:** Use the returned invite_code in:
@@ -102,7 +102,7 @@ rummikub-backend/
 ## Game Logic and API
 
 ### Authentication
-- **Game Creation:** Basic Auth with `admin:rummikub2024`
+- **Game Creation:** Basic Auth with `admin:admin`
 - **All Other Operations:** Session-based with session_id
 
 ### Core Game Flow
@@ -215,5 +215,5 @@ python test_api.py && python test_actions.py && python test_openapi.py
 # Visit http://localhost:8090/redoc (ReDoc)
 
 # Manual API testing
-curl -u admin:rummikub2024 -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2}'
+curl -u admin:admin -X POST localhost:8090/game -H "Content-Type: application/json" -d '{"max_players":2}'
 ```
