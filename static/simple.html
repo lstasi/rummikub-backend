@@ -299,12 +299,18 @@
                     <input type="url" id="server-url" value="http://localhost:8090" />
                 </div>
                 <div class="form-group">
-                    <label for="game-id">Game ID:</label>
-                    <input type="text" id="game-id" placeholder="Enter game ID" />
+                    <label for="game-id">Select Existing Game:</label>
+                    <select id="game-id-select">
+                        <option value="">Loading games...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="game-id">Or Enter Game ID:</label>
+                    <input type="text" id="game-id" placeholder="Enter game ID manually" />
                 </div>
                 <div class="form-group">
                     <label for="player-name">Player Name:</label>
-                    <input type="text" id="player-name" placeholder="Enter your name" />
+                    <input type="text" id="player-name" placeholder="Auto-assigned (P1, P2, P3, P4)" readonly />
                 </div>
                 <button id="join-btn">Join Game</button>
                 <button id="create-game-btn" class="primary-btn">Create New Game</button>
@@ -314,20 +320,8 @@
 
         <!-- Login Screen for Game Creation -->
         <div id="login-screen" class="game-section hidden">
-            <div class="section-title">Admin Login</div>
+            <div class="section-title">Create New Game</div>
             <div class="setup-form">
-                <div class="form-group">
-                    <label for="admin-username">Username:</label>
-                    <input type="text" id="admin-username" placeholder="admin" />
-                </div>
-                <div class="form-group">
-                    <label for="admin-password">Password:</label>
-                    <input type="password" id="admin-password" placeholder="admin" />
-                </div>
-                <div class="form-group">
-                    <label for="creator-name">Your Name:</label>
-                    <input type="text" id="creator-name" placeholder="Game Creator" />
-                </div>
                 <div class="form-group">
                     <label for="max-players">Max Players:</label>
                     <select id="max-players">
@@ -336,7 +330,7 @@
                         <option value="4" selected>4 Players</option>
                     </select>
                 </div>
-                <button id="login-btn" class="primary-btn">Login & Create Game</button>
+                <button id="login-btn" class="primary-btn">Create Game</button>
                 <button id="cancel-login-btn" class="secondary-btn">Cancel</button>
                 <div id="login-message" class="message hidden"></div>
             </div>
@@ -381,12 +375,6 @@
                         </p>
                     </div>
                     <div>
-                        <div class="section-title">Dashboard</div>
-                        <div class="hand-area" id="dashboard-area" style="background: #fff3cd; border: 2px solid #ffc107;">
-                            <p style="text-align: center; color: #856404; margin-top: 50px;">
-                                Dashboard tiles will appear here
-                            </p>
-                        </div>
                         <div class="section-title">Your Hand</div>
                         <div class="hand-area" id="hand-area">
                             <p style="text-align: center; color: #7f8c8d; margin-top: 100px;">
@@ -401,12 +389,10 @@
             <div class="game-section">
                 <div class="section-title">Game Actions</div>
                 <div class="actions-panel">
-                    <button id="push-to-dashboard-btn" class="primary-btn" disabled>Push to Dashboard</button>
-                    <button id="remove-from-dashboard-btn" class="danger-btn" disabled>Remove from Dashboard</button>
-                    <button id="combine-set-btn" class="primary-btn" disabled>Combine Set</button>
-                    <button id="break-set-btn" class="danger-btn" disabled>Break Set</button>
+                    <button id="push-to-board-btn" class="primary-btn" disabled>Push to Board</button>
+                    <button id="remove-from-board-btn" class="danger-btn" disabled>Remove from Board</button>
+                    <button id="combine-set-btn" class="primary-btn" disabled>Combine & Validate</button>
                     <button id="draw-tile-btn">Draw Tile</button>
-                    <button id="reset-board-btn" class="secondary-btn">Reset Turn</button>
                     <button id="auto-refresh-btn" class="auto-refresh">Auto Refresh: OFF</button>
                 </div>
                 <div id="game-message" class="message hidden"></div>
@@ -423,13 +409,13 @@
                 this.gameState = null;
                 this.selectedTiles = [];
                 this.selectedCombinations = [];
-                this.dashboardTiles = []; // Tiles currently on the dashboard
                 this.initialGameState = null; // Store initial state for reset
                 this.autoRefresh = false;
                 this.refreshInterval = null;
                 
                 this.initializeElements();
                 this.setupEventListeners();
+                this.loadGames(); // Load available games into dropdown
             }
 
             initializeElements() {
@@ -438,16 +424,14 @@
                 this.loginScreen = document.getElementById('login-screen');
                 this.gameScreen = document.getElementById('game-screen');
                 this.serverUrlInput = document.getElementById('server-url');
+                this.gameIdSelect = document.getElementById('game-id-select');
                 this.gameIdInput = document.getElementById('game-id');
                 this.playerNameInput = document.getElementById('player-name');
                 this.joinBtn = document.getElementById('join-btn');
                 this.createGameBtn = document.getElementById('create-game-btn');
                 this.setupMessage = document.getElementById('setup-message');
 
-                // Login screen elements
-                this.adminUsernameInput = document.getElementById('admin-username');
-                this.adminPasswordInput = document.getElementById('admin-password');
-                this.creatorNameInput = document.getElementById('creator-name');
+                // Login screen elements (now simplified)
                 this.maxPlayersSelect = document.getElementById('max-players');
                 this.loginBtn = document.getElementById('login-btn');
                 this.cancelLoginBtn = document.getElementById('cancel-login-btn');
@@ -461,42 +445,38 @@
                 this.selectedCountSpan = document.getElementById('selected-count');
                 this.boardArea = document.getElementById('board-area');
                 this.handArea = document.getElementById('hand-area');
-                this.dashboardArea = document.getElementById('dashboard-area');
 
                 // Action buttons
-                this.pushToDashboardBtn = document.getElementById('push-to-dashboard-btn');
-                this.removeFromDashboardBtn = document.getElementById('remove-from-dashboard-btn');
+                this.pushToBoardBtn = document.getElementById('push-to-board-btn');
+                this.removeFromBoardBtn = document.getElementById('remove-from-board-btn');
                 this.combineSetBtn = document.getElementById('combine-set-btn');
-                this.breakSetBtn = document.getElementById('break-set-btn');
                 this.drawTileBtn = document.getElementById('draw-tile-btn');
-                this.resetBoardBtn = document.getElementById('reset-board-btn');
                 this.autoRefreshBtn = document.getElementById('auto-refresh-btn');
                 this.gameMessage = document.getElementById('game-message');
             }
 
             setupEventListeners() {
                 this.joinBtn.addEventListener('click', () => this.joinGame());
-                this.createGameBtn.addEventListener('click', () => this.showLoginScreen());
+                this.createGameBtn.addEventListener('click', () => this.showCreateGameScreen());
                 this.loginBtn.addEventListener('click', () => this.createGame());
                 this.cancelLoginBtn.addEventListener('click', () => this.showSetupScreen());
                 
-                this.pushToDashboardBtn.addEventListener('click', () => this.pushToDashboard());
-                this.removeFromDashboardBtn.addEventListener('click', () => this.removeFromDashboard());
-                this.combineSetBtn.addEventListener('click', () => this.combineSet());
-                this.breakSetBtn.addEventListener('click', () => this.breakSet());
+                this.pushToBoardBtn.addEventListener('click', () => this.pushToBoard());
+                this.removeFromBoardBtn.addEventListener('click', () => this.removeFromBoard());
+                this.combineSetBtn.addEventListener('click', () => this.combineAndValidateSet());
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
-                this.resetBoardBtn.addEventListener('click', () => this.resetBoard());
                 this.autoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
 
+                // Update game ID input when selection changes
+                this.gameIdSelect.addEventListener('change', () => {
+                    this.gameIdInput.value = this.gameIdSelect.value;
+                });
+
                 // Handle Enter key in input fields
-                [this.gameIdInput, this.playerNameInput, this.adminPasswordInput].forEach(input => {
+                [this.gameIdInput, this.playerNameInput].forEach(input => {
                     input.addEventListener('keypress', (e) => {
                         if (e.key === 'Enter') {
-                            if (input === this.adminPasswordInput) {
-                                this.createGame();
-                            } else {
-                                this.joinGame();
-                            }
+                            this.joinGame();
                         }
                     });
                 });
@@ -506,9 +486,10 @@
                 this.setupScreen.classList.remove('hidden');
                 this.loginScreen.classList.add('hidden');
                 this.gameScreen.classList.add('hidden');
+                this.loadGames(); // Refresh games list
             }
 
-            showLoginScreen() {
+            showCreateGameScreen() {
                 this.setupScreen.classList.add('hidden');
                 this.loginScreen.classList.remove('hidden');
                 this.gameScreen.classList.add('hidden');
@@ -520,6 +501,38 @@
                 this.gameScreen.classList.remove('hidden');
             }
 
+            async loadGames() {
+                try {
+                    const serverUrl = this.serverUrlInput.value.trim() || 'http://localhost:8090';
+                    const response = await fetch(`${serverUrl}/games`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.populateGamesDropdown(data.games);
+                    } else {
+                        this.gameIdSelect.innerHTML = '<option value="">Failed to load games</option>';
+                    }
+                } catch (error) {
+                    console.error('Error loading games:', error);
+                    this.gameIdSelect.innerHTML = '<option value="">Error loading games</option>';
+                }
+            }
+
+            populateGamesDropdown(games) {
+                this.gameIdSelect.innerHTML = '<option value="">-- Select a game --</option>';
+                
+                if (games.length === 0) {
+                    this.gameIdSelect.innerHTML += '<option value="">No games available</option>';
+                    return;
+                }
+                
+                games.forEach(game => {
+                    const option = document.createElement('option');
+                    option.value = game.game_id;
+                    option.textContent = `${game.game_id.substring(0, 8)}... (${game.player_count}/${game.max_players} players, ${game.status})`;
+                    this.gameIdSelect.appendChild(option);
+                });
+            }
+
             showMessage(text, type = 'info', element = null) {
                 const messageEl = element || this.gameMessage;
                 messageEl.textContent = text;
@@ -529,16 +542,8 @@
             }
 
             async createGame() {
-                const serverUrl = this.serverUrlInput.value.trim();
-                const username = this.adminUsernameInput.value.trim();
-                const password = this.adminPasswordInput.value.trim();
-                const creatorName = this.creatorNameInput.value.trim();
+                const serverUrl = this.serverUrlInput.value.trim() || 'http://localhost:8090';
                 const maxPlayers = parseInt(this.maxPlayersSelect.value);
-
-                if (!serverUrl || !username || !password || !creatorName) {
-                    this.showMessage('Please fill in all fields', 'error', this.loginMessage);
-                    return;
-                }
 
                 this.baseUrl = serverUrl;
 
@@ -546,11 +551,9 @@
                     const response = await fetch(`${this.baseUrl}/game`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Basic ' + btoa(`${username}:${password}`)
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({ 
-                            name: creatorName,
                             max_players: maxPlayers 
                         })
                     });
@@ -561,10 +564,9 @@
 
                     const data = await response.json();
                     this.gameId = data.game_id;
-                    this.playerNameInput.value = creatorName;
                     this.gameIdInput.value = data.game_id;
                     
-                    this.showMessage(`Game created! ID: ${data.game_id}`, 'success', this.loginMessage);
+                    this.showMessage(`Game created! ID: ${data.game_id.substring(0, 8)}...`, 'success', this.loginMessage);
                     
                     setTimeout(() => {
                         this.showSetupScreen();
@@ -578,12 +580,11 @@
             }
 
             async joinGame() {
-                const serverUrl = this.serverUrlInput.value.trim();
-                const gameId = this.gameIdInput.value.trim();
-                const playerName = this.playerNameInput.value.trim();
+                const serverUrl = this.serverUrlInput.value.trim() || 'http://localhost:8090';
+                const gameId = this.gameIdSelect.value || this.gameIdInput.value.trim();
 
-                if (!serverUrl || !gameId || !playerName) {
-                    this.showMessage('Please fill in all fields', 'error', this.setupMessage);
+                if (!gameId) {
+                    this.showMessage('Please select a game or enter a game ID', 'error', this.setupMessage);
                     return;
                 }
 
@@ -594,7 +595,7 @@
                     const response = await fetch(`${this.baseUrl}/game/${gameId}/join`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ player_name: playerName })
+                        body: JSON.stringify({}) // Player name will be auto-assigned
                     });
 
                     if (!response.ok) {
@@ -606,7 +607,7 @@
                     this.gameState = data.game_state;
                     this.initialGameState = JSON.parse(JSON.stringify(this.gameState)); // Deep copy for reset
 
-                    this.showMessage('Successfully joined game!', 'success', this.setupMessage);
+                    this.showMessage(`Successfully joined as ${data.player_name}!`, 'success', this.setupMessage);
                     setTimeout(() => {
                         this.showGameScreen();
                         this.updateUI();
@@ -651,7 +652,6 @@
 
                 // Update areas
                 this.updateHand();
-                this.updateDashboard();
                 this.updateBoard();
                 this.updateButtonStates();
             }
@@ -671,18 +671,6 @@
                     const tileEl = this.createTileElement(tile, 'hand');
                     this.handArea.appendChild(tileEl);
                 });
-            }
-
-            updateDashboard() {
-                this.dashboardArea.innerHTML = '';
-                if (this.dashboardTiles.length === 0) {
-                    this.dashboardArea.innerHTML = '<p style="text-align: center; color: #856404; margin-top: 50px;">Dashboard tiles will appear here</p>';
-                } else {
-                    this.dashboardTiles.forEach(tile => {
-                        const tileEl = this.createTileElement(tile, 'dashboard');
-                        this.dashboardArea.appendChild(tileEl);
-                    });
-                }
             }
 
             updateBoard() {
@@ -747,8 +735,8 @@
                     this.selectedTiles.splice(index, 1);
                     tileEl.classList.remove('selected');
                 } else {
-                    // Select - only allow selection from hand and dashboard
-                    if (location === 'hand' || location === 'dashboard') {
+                    // Select - only allow selection from hand and board tiles
+                    if (location === 'hand' || location === 'board') {
                         this.selectedTiles.push({...tile, location});
                         tileEl.classList.add('selected');
                     }
@@ -777,80 +765,24 @@
             updateButtonStates() {
                 const canPlay = this.gameState?.can_play || false;
                 const hasHandTiles = this.selectedTiles.filter(t => t.location === 'hand').length > 0;
-                const hasDashboardTiles = this.selectedTiles.filter(t => t.location === 'dashboard').length > 0;
-                const hasSelectedCombinations = this.selectedCombinations.length > 0;
-                const dashboardHasEnoughForSet = this.dashboardTiles.length >= 3;
+                const hasBoardTiles = this.selectedTiles.filter(t => t.location === 'board').length > 0;
+                const hasSelectedHandTiles = hasHandTiles && this.selectedTiles.filter(t => t.location === 'hand').length >= 3;
 
-                this.pushToDashboardBtn.disabled = !canPlay || !hasHandTiles;
-                this.removeFromDashboardBtn.disabled = !canPlay || !hasDashboardTiles;
-                this.combineSetBtn.disabled = !canPlay || !dashboardHasEnoughForSet;
-                this.breakSetBtn.disabled = !canPlay || !hasSelectedCombinations;
-                this.drawTileBtn.disabled = !canPlay || this.dashboardTiles.length > 0;
-                this.resetBoardBtn.disabled = !canPlay || this.dashboardTiles.length === 0;
+                this.pushToBoardBtn.disabled = !canPlay || !hasSelectedHandTiles;
+                this.removeFromBoardBtn.disabled = !canPlay || !hasBoardTiles;
+                this.combineSetBtn.disabled = !canPlay || !hasHandTiles;
+                this.drawTileBtn.disabled = !canPlay;
             }
 
-            pushToDashboard() {
+            async pushToBoard() {
                 const handTiles = this.selectedTiles.filter(t => t.location === 'hand');
-                if (handTiles.length === 0) {
-                    this.showMessage('Select tiles from your hand to push to dashboard', 'warning');
+                if (handTiles.length < 3) {
+                    this.showMessage('Select at least 3 tiles from your hand to place on the board', 'warning');
                     return;
                 }
 
-                // Move selected tiles from hand to dashboard
-                handTiles.forEach(selectedTile => {
-                    // Remove from hand
-                    const handIndex = this.gameState.your_tiles.findIndex(tile => tile.id === selectedTile.id);
-                    if (handIndex >= 0) {
-                        const tile = this.gameState.your_tiles.splice(handIndex, 1)[0];
-                        this.dashboardTiles.push(tile);
-                    }
-
-                    // Remove from selection
-                    const selIndex = this.selectedTiles.findIndex(t => t.id === selectedTile.id);
-                    if (selIndex >= 0) {
-                        this.selectedTiles.splice(selIndex, 1);
-                    }
-                });
-
-                this.updateUI();
-                this.showMessage(`${handTiles.length} tile(s) moved to dashboard`, 'success');
-            }
-
-            removeFromDashboard() {
-                const dashboardTiles = this.selectedTiles.filter(t => t.location === 'dashboard');
-                if (dashboardTiles.length === 0) {
-                    this.showMessage('Select tiles from the dashboard to remove', 'warning');
-                    return;
-                }
-
-                // Move selected tiles from dashboard back to hand
-                dashboardTiles.forEach(selectedTile => {
-                    // Remove from dashboard
-                    const dashIndex = this.dashboardTiles.findIndex(tile => tile.id === selectedTile.id);
-                    if (dashIndex >= 0) {
-                        const tile = this.dashboardTiles.splice(dashIndex, 1)[0];
-                        this.gameState.your_tiles.push(tile);
-                    }
-
-                    // Remove from selection
-                    const selIndex = this.selectedTiles.findIndex(t => t.id === selectedTile.id);
-                    if (selIndex >= 0) {
-                        this.selectedTiles.splice(selIndex, 1);
-                    }
-                });
-
-                this.updateUI();
-                this.showMessage(`${dashboardTiles.length} tile(s) returned to hand`, 'success');
-            }
-
-            async combineSet() {
-                if (this.dashboardTiles.length < 3) {
-                    this.showMessage('Need at least 3 tiles on dashboard to combine into a set', 'warning');
-                    return;
-                }
-
-                // Get all tile IDs from dashboard
-                const tileIds = this.dashboardTiles.map(tile => tile.id);
+                // Get tile IDs
+                const tileIds = handTiles.map(t => t.id);
 
                 try {
                     const response = await fetch(`${this.baseUrl}/game/${this.gameId}/action`, {
@@ -872,38 +804,78 @@
                     const result = await response.json();
                     
                     if (result.success) {
-                        this.dashboardTiles = []; // Clear dashboard
                         this.selectedTiles = []; // Clear selections
                         this.selectedCombinations = [];
                         this.gameState = result.game_state;
                         this.updateUI();
-                        this.showMessage('Set successfully placed! Turn completed.', 'success');
+                        this.showMessage('Tiles successfully placed on board! Turn completed.', 'success');
                     } else {
-                        this.showMessage(result.message || 'Failed to combine set - invalid combination', 'error');
+                        this.showMessage(result.message || 'Failed to place tiles - invalid combination', 'error');
                     }
 
                 } catch (error) {
-                    console.error('Combine set error:', error);
-                    this.showMessage(`Failed to combine set: ${error.message}`, 'error');
+                    console.error('Push to board error:', error);
+                    this.showMessage(`Failed to place tiles: ${error.message}`, 'error');
                 }
             }
 
-            breakSet() {
-                if (this.selectedCombinations.length === 0) {
-                    this.showMessage('Select a combination on the board to break', 'warning');
+            removeFromBoard() {
+                const boardTiles = this.selectedTiles.filter(t => t.location === 'board');
+                if (boardTiles.length === 0) {
+                    this.showMessage('Select tiles from the board to remove (only tiles you placed this turn)', 'warning');
                     return;
                 }
 
-                // For now, just show a message as this would require more complex backend support
-                this.showMessage('Break set functionality would require backend support for rearrangement', 'warning');
+                // For now, show a message as this would require tracking which tiles were placed this turn
+                this.showMessage('Remove from board: Only tiles placed in the current turn can be removed. This requires backend support.', 'warning');
+            }
+
+            async combineAndValidateSet() {
+                const handTiles = this.selectedTiles.filter(t => t.location === 'hand');
+                if (handTiles.length < 3) {
+                    this.showMessage('Select at least 3 tiles from your hand to combine and validate', 'warning');
+                    return;
+                }
+
+                // Get tile IDs
+                const tileIds = handTiles.map(t => t.id);
+
+                try {
+                    const response = await fetch(`${this.baseUrl}/game/${this.gameId}/action`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.sessionId}`
+                        },
+                        body: JSON.stringify({
+                            action_type: 'place_tiles',
+                            tiles: tileIds
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.selectedTiles = []; // Clear selections
+                        this.selectedCombinations = [];
+                        this.gameState = result.game_state;
+                        this.updateUI();
+                        this.showMessage('Valid combination! Tiles placed on board and turn completed.', 'success');
+                    } else {
+                        this.showMessage(result.message || 'Invalid combination - tiles not placed', 'error');
+                    }
+
+                } catch (error) {
+                    console.error('Combine and validate error:', error);
+                    this.showMessage(`Failed to validate combination: ${error.message}`, 'error');
+                }
             }
 
             async drawTile() {
-                if (this.dashboardTiles.length > 0) {
-                    this.showMessage('Cannot draw tile while you have tiles on dashboard. Use them or reset first.', 'warning');
-                    return;
-                }
-
                 if (!this.gameState?.can_play) {
                     this.showMessage('Not your turn!', 'warning');
                     return;
@@ -937,26 +909,6 @@
                     console.error('Draw tile error:', error);
                     this.showMessage(`Failed to draw tile: ${error.message}`, 'error');
                 }
-            }
-
-            resetBoard() {
-                if (this.dashboardTiles.length === 0) {
-                    this.showMessage('No dashboard changes to reset', 'warning');
-                    return;
-                }
-
-                // Return all dashboard tiles to hand
-                this.dashboardTiles.forEach(tile => {
-                    this.gameState.your_tiles.push(tile);
-                });
-
-                // Clear dashboard and selections
-                this.dashboardTiles = [];
-                this.selectedTiles = [];
-                this.selectedCombinations = [];
-                
-                this.updateUI();
-                this.showMessage('Dashboard reset! All tiles returned to hand.', 'success');
             }
 
             toggleAutoRefresh() {
