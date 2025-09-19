@@ -692,8 +692,48 @@ class GameIntegrationTest:
             'tiles_placed_total': 0,
             'average_game_length': 0,
             'winners': {},
-            'rule_violations': 0
+            'rule_violations': 0,
+            'pool_exhaustion_failures': 0
         }
+    
+    def _format_tiles(self, tiles: List[Tile]) -> str:
+        """Format tiles for display."""
+        if not tiles:
+            return "[]"
+        
+        tile_strs = []
+        for tile in sorted(tiles, key=lambda t: (t.number or 0, str(t.color) if t.color else "z")):
+            tile_strs.append(str(tile))
+        
+        return f"[{', '.join(tile_strs)}]"
+    
+    def _display_game_state(self, game_state: GameState, current_player_name: str):
+        """Display the current game state including hand and board."""
+        print(f"👤 {current_player_name}'s hand: {self._format_tiles(game_state.your_tiles)}")
+        
+        if game_state.board:
+            print("📋 Board:")
+            for i, combo in enumerate(game_state.board):
+                print(f"   Combination {i+1}: {self._format_tiles(combo.tiles)}")
+        else:
+            print("📋 Board: [empty]")
+    
+    def _log_action(self, action: GameAction, result: ActionResponse, tiles_placed: int):
+        """Log the action performed with details."""
+        if action.action_type == "place_tiles":
+            tile_count = len(action.tiles) if action.tiles else 0
+            print(f"🎯 Action: Placed {tile_count} tiles (value: {tiles_placed})")
+        elif action.action_type == "draw_tile":
+            print("🎯 Action: Drew a tile")
+        elif action.action_type == "rearrange":
+            print("🎯 Action: Rearranged combinations")
+        else:
+            print(f"🎯 Action: {action.action_type}")
+        
+        if not result.success:
+            print(f"   ❌ Failed: {result.message}")
+        else:
+            print(f"   ✅ Success: {result.message}")
     
     def run_complete_game(self, num_players: Optional[int] = None) -> Dict[str, any]:
         """Run a complete game from start to finish."""
@@ -737,6 +777,10 @@ class GameIntegrationTest:
             turn_count += 1
             current_player = game.current_player
             
+            if not current_player:
+                print(f"❌ No current player found on turn {turn_count}")
+                break
+            
             # Find the NPC for this player
             npc = None
             for n in npc_players:
@@ -756,8 +800,19 @@ class GameIntegrationTest:
                 print("❌ Could not get game state")
                 break
             
+            # Display current state
+            self._display_game_state(game_state, npc.name)
+            
             # NPC makes a move
             initial_tile_count = len(current_player.tiles)
+            
+            # Get the suggested action first for logging
+            suggested_action = npc.suggest_best_move(
+                current_player.tiles, 
+                current_player.has_initial_meld,
+                game.board
+            )
+            
             result = npc.make_move(
                 self.game_service, 
                 game_id, 
@@ -766,9 +821,19 @@ class GameIntegrationTest:
                 game.board
             )
             
+            # Log the action
+            tiles_placed = initial_tile_count - len(current_player.tiles) if result.success else 0
+            self._log_action(suggested_action, result, tiles_placed)
+            
             if not result.success:
                 print(f"❌ Move failed: {result.message}")
                 self.stats['rule_violations'] += 1
+                
+                # Check if pool is empty - this is a simulation failure
+                if len(game.tile_pool) == 0:
+                    print("💀 SIMULATION FAILED: Tile pool exhausted!")
+                    self.stats['pool_exhaustion_failures'] += 1
+                    break
                 
                 # If pool is empty, just pass the turn instead of trying to draw
                 if "No tiles left in pool" in result.message:
@@ -805,6 +870,13 @@ class GameIntegrationTest:
                 break
         
         # Game finished
+        if not game:
+            return {
+                'error': 'Game reference lost during execution',
+                'turns': turn_count,
+                'pool_exhausted': len(game.tile_pool) == 0 if game else True
+            }
+        
         game_result = {
             'game_id': game_id,
             'turns': turn_count,
@@ -812,6 +884,7 @@ class GameIntegrationTest:
             'tiles_placed': tiles_placed_this_game,
             'board_combinations': len(game.board),
             'remaining_pool': len(game.tile_pool),
+            'pool_exhausted': len(game.tile_pool) == 0,
             'players': []
         }
         
@@ -877,6 +950,7 @@ class GameIntegrationTest:
         print(f"Total tiles placed: {self.stats['tiles_placed_total']}")
         print(f"Average tiles per game: {self.stats.get('average_tiles_per_game', 0):.1f}")
         print(f"Rule violations: {self.stats['rule_violations']}")
+        print(f"Pool exhaustion failures: {self.stats['pool_exhaustion_failures']}")
         print("Winners distribution:", self.stats['winners'])
         
         # Validate game rules were followed
@@ -923,11 +997,14 @@ class GameIntegrationTest:
             else:
                 print(f"  ✅ {result['tiles_placed']} tiles placed successfully")
             
-            # Check board state
-            if result['board_combinations'] > 0:
-                print(f"  ✅ Board has {result['board_combinations']} valid combinations")
-            
-            print(f"  📊 Game completed in {result['turns']} turns")
+            # Check for pool exhaustion failures
+            if result.get('pool_exhausted', False) and not result.get('winner'):
+                print(f"  ❌ Pool exhausted without winner - simulation failed")
+                all_valid = False
+            elif result.get('pool_exhausted', False):
+                print(f"  ⚠️  Pool exhausted but game had winner")
+            else:
+                print(f"  ✅ Pool not exhausted")
         
         return all_valid
 
@@ -954,7 +1031,8 @@ def main():
         'tiles_placed_total': 0,
         'average_game_length': 0,
         'winners': {},
-        'rule_violations': 0
+        'rule_violations': 0,
+        'pool_exhaustion_failures': 0
     }
     
     # Run multiple games
