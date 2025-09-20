@@ -170,3 +170,12 @@ class ActionResponse(BaseModel):
     success: bool
     message: str
     game_state: Optional[GameState] = None
+
+
+class BoardChangeValidation(BaseModel):
+    """Result of validating a board change."""
+    success: bool
+    message: str
+    new_hand: Optional[List[Tile]] = None
+    initial_meld_achieved: bool = False
+    change_log: str = ""
