@@ -4,7 +4,7 @@ import threading
 from typing import List, Optional, Dict
 from .models import (
     Game, Player, Tile, TileColor, Combination, GameStatus, 
-    PlayerStatus, GameState, GameAction, ActionResponse
+    PlayerStatus, GameState, GameAction, ActionResponse, BoardChangeValidation
 )
 from .redis_storage import RedisStorage
 
@@ -46,17 +46,9 @@ class GameService:
             return Game.model_validate(game_data)
         return None
     
-    def _store_session(self, session_id: str, game_id: str, player_id: str) -> bool:
-        """Store a session mapping in Redis."""
-        return self.storage.set_json(f"session:{session_id}", {"game_id": game_id, "player_id": player_id})
-    
     def _load_session(self, session_id: str) -> Optional[Dict[str, str]]:
         """Load a session mapping from Redis."""
         return self.storage.get_json(f"session:{session_id}")
-
-    def generate_invite_code(self) -> str:
-        """Generate a random 6-character invite code."""
-        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
 
     def create_game(self, max_players: int = 4, creator_name: str = "Admin") -> Game:
         """Create a new game."""
@@ -72,16 +64,6 @@ class GameService:
         self.game_locks[game.id] = threading.Lock()
         self.action_counters[game.id] = 0
         return game
-
-    def find_game_by_invite_code(self, invite_code: str) -> Optional[Game]:
-        """Find a game by its invite code."""
-        # Get all game keys from Redis
-        game_keys = self.storage.keys("game:*")
-        for key in game_keys:
-            game_data = self.storage.get_json(key)
-            if game_data and game_data.get("invite_code") == invite_code:
-                return Game.model_validate(game_data)
-        return None
 
     def join_game_by_id(self, game_id: str, player_name: str = None) -> tuple[Optional[Game], Optional[Player], str]:
         """
@@ -138,14 +120,6 @@ class GameService:
             return game, player, "Successfully joined game"
         
         return None, None, "Unable to join game"
-
-    def _generate_session_id(self) -> str:
-        """Generate a unique session ID."""
-        session_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-        # Check Redis for session existence
-        while self.storage.exists(f"session:{session_id}"):
-            session_id = ''.join(random.choices(string.ascii_letters + string.digits, k=32))
-        return session_id
 
     def get_game_state_by_player(self, game_id: str, player_id: str) -> Optional[GameState]:
         """Get game state for a specific player by player ID."""
@@ -226,39 +200,47 @@ class GameService:
                 return ActionResponse(success=False, message="Invalid action type")
 
     def _handle_place_tiles(self, game: Game, player: Player, action: GameAction, session_id: str = None) -> ActionResponse:
-        """Handle placing tiles on the board."""
-        if not action.tiles:
-            return ActionResponse(success=False, message="No tiles specified")
+        """Handle placing tiles on the board with proper validation and change tracking."""
+        # Store original state for validation
+        original_hand = [tile.model_copy() for tile in player.tiles]
+        original_board = [combo.model_copy() for combo in game.board]
         
-        # Find the tiles in player's hand
-        tiles_to_place = []
-        for tile_id in action.tiles:
-            tile = self._find_tile_by_id(player.tiles, tile_id)
-            if not tile:
-                return ActionResponse(success=False, message=f"Tile {tile_id} not found in hand")
-            tiles_to_place.append(tile)
-        
-        # Create combination and validate
-        combination = Combination(tiles=tiles_to_place)
-        if not combination.is_valid():
-            return ActionResponse(success=False, message="Invalid tile combination")
-        
-        # Check initial meld requirement (30 points minimum)
-        if not player.has_initial_meld:
-            total_value = sum(combo.get_value() for combo in game.board if any(
-                tile.id in [t.id for t in combo.tiles] for tile in tiles_to_place
-            )) + combination.get_value()
+        # Determine the new board state based on action type
+        if action.combinations:
+            # Full board state provided - for rearrangement or complex placements
+            new_board_combinations = self._parse_combinations_from_action(action.combinations, original_hand, original_board)
+            if new_board_combinations is None:
+                return ActionResponse(success=False, message="Invalid tile IDs in combinations")
+        elif action.tiles:
+            # Simple placement - create single new combination
+            tiles_to_place = []
+            for tile_id in action.tiles:
+                tile = self._find_tile_by_id(player.tiles, tile_id)
+                if not tile:
+                    return ActionResponse(success=False, message=f"Tile {tile_id} not found in hand")
+                tiles_to_place.append(tile)
             
-            if total_value < 30:
-                return ActionResponse(success=False, message="Initial meld must be worth at least 30 points")
-            
+            # Create new combination and add to existing board
+            new_combination = Combination(tiles=tiles_to_place)
+            new_board_combinations = original_board + [new_combination]
+        else:
+            return ActionResponse(success=False, message="No tiles or combinations specified")
+        
+        # Validate that the new board state is achievable
+        validation_result = self._validate_board_change(
+            original_hand, original_board, new_board_combinations, player.has_initial_meld
+        )
+        
+        if not validation_result.success:
+            return ActionResponse(success=False, message=validation_result.message)
+        
+        # Apply the changes
+        player.tiles = validation_result.new_hand
+        game.board = new_board_combinations
+        
+        # Mark initial meld as complete if it was achieved
+        if validation_result.initial_meld_achieved:
             player.has_initial_meld = True
-        
-        # Remove tiles from player's hand and add combination to board
-        for tile in tiles_to_place:
-            player.tiles.remove(tile)
-        
-        game.board.append(combination)
         
         # Check win condition
         if len(player.tiles) == 0:
@@ -271,9 +253,10 @@ class GameService:
         self._store_game(game)
         
         game_state = self.get_game_state_by_player(game.id, player.id)
+        message = f"Tiles placed successfully. {validation_result.change_log}"
         return ActionResponse(
             success=True, 
-            message="Tiles placed successfully",
+            message=message,
             game_state=game_state
         )
 
@@ -301,13 +284,123 @@ class GameService:
 
     def _handle_rearrange(self, game: Game, player: Player, action: GameAction, session_id: str = None) -> ActionResponse:
         """Handle rearranging tiles on the board."""
-        # This is a complex operation that would involve validating that all
-        # combinations remain valid after rearrangement
-        # For now, return a not implemented message
-        return ActionResponse(
-            success=False,
-            message="Rearrange action not yet implemented"
+        # Rearrange is now handled the same way as place_tiles with combinations
+        if not action.combinations:
+            return ActionResponse(success=False, message="No combinations specified for rearrangement")
+        
+        # Use the same logic as place_tiles
+        return self._handle_place_tiles(game, player, action, session_id)
+
+    def _parse_combinations_from_action(self, combinations: List[List[str]], hand: List[Tile], board: List[Combination]) -> Optional[List[Combination]]:
+        """Parse combinations from action into Combination objects."""
+        all_tiles = hand + [tile for combo in board for tile in combo.tiles]
+        result = []
+        
+        for combo_tile_ids in combinations:
+            combo_tiles = []
+            for tile_id in combo_tile_ids:
+                tile = self._find_tile_by_id(all_tiles, tile_id)
+                if not tile:
+                    return None
+                combo_tiles.append(tile)
+            result.append(Combination(tiles=combo_tiles))
+        
+        return result
+
+    def _validate_board_change(self, original_hand: List[Tile], original_board: List[Combination], 
+                              new_board: List[Combination], has_initial_meld: bool) -> 'BoardChangeValidation':
+        """Validate that a board change follows Rummikub rules."""
+        # Get all tile IDs for easy comparison
+        original_hand_ids = {tile.id for tile in original_hand}
+        original_board_tiles = [tile for combo in original_board for tile in combo.tiles]
+        original_board_ids = {tile.id for tile in original_board_tiles}
+        
+        new_board_tiles = [tile for combo in new_board for tile in combo.tiles]
+        new_board_ids = {tile.id for tile in new_board_tiles}
+        
+        # Determine which tiles were moved from hand to board
+        tiles_from_hand = new_board_ids - original_board_ids
+        tiles_moved_from_hand = [tile for tile in original_hand if tile.id in tiles_from_hand]
+        
+        # Calculate new hand (original hand minus tiles moved to board)
+        new_hand = [tile for tile in original_hand if tile.id not in tiles_from_hand]
+        
+        # Validate that no tiles were added from nowhere
+        all_available_tiles = original_hand_ids | original_board_ids
+        if not new_board_ids.issubset(all_available_tiles):
+            invalid_tiles = new_board_ids - all_available_tiles
+            return BoardChangeValidation(
+                success=False,
+                message=f"Tiles not available: {invalid_tiles}"
+            )
+        
+        # Validate all combinations are valid
+        for combo in new_board:
+            if not combo.is_valid():
+                return BoardChangeValidation(
+                    success=False,
+                    message=f"Invalid combination: {[str(t) for t in combo.tiles]}"
+                )
+        
+        # Check initial meld requirement
+        initial_meld_achieved = has_initial_meld
+        if not has_initial_meld and tiles_moved_from_hand:
+            # Only new combinations (those containing tiles from hand) count toward initial meld
+            new_combo_value = sum(
+                combo.get_value() for combo in new_board 
+                if any(tile.id in tiles_from_hand for tile in combo.tiles)
+            )
+            if new_combo_value < 30:
+                return BoardChangeValidation(
+                    success=False,
+                    message=f"Initial meld must be worth at least 30 points (current: {new_combo_value})"
+                )
+            initial_meld_achieved = True
+        
+        # Create change log
+        change_log = self._create_change_log(original_board, new_board, tiles_moved_from_hand)
+        
+        return BoardChangeValidation(
+            success=True,
+            message="Valid move",
+            new_hand=new_hand,
+            initial_meld_achieved=initial_meld_achieved,
+            change_log=change_log
         )
+
+    def _create_change_log(self, original_board: List[Combination], new_board: List[Combination], 
+                          tiles_from_hand: List[Tile]) -> str:
+        """Create a detailed log of changes made to the board."""
+        changes = []
+        
+        if tiles_from_hand:
+            changes.append(f"Moved {len(tiles_from_hand)} tiles from hand to board")
+        
+        # Count combinations
+        orig_count = len(original_board)
+        new_count = len(new_board)
+        
+        if new_count > orig_count:
+            changes.append(f"Added {new_count - orig_count} new combination(s)")
+        elif new_count < orig_count:
+            changes.append(f"Removed {orig_count - new_count} combination(s)")
+        
+        # Detect rearrangements (simplified)
+        if orig_count > 0 and new_count > 0:
+            # Check if any existing combinations were modified
+            original_tile_sets = [set(tile.id for tile in combo.tiles) for combo in original_board]
+            new_tile_sets = [set(tile.id for tile in combo.tiles) for combo in new_board]
+            
+            rearranged = False
+            for orig_set in original_tile_sets:
+                if orig_set not in new_tile_sets:
+                    rearranged = True
+                    break
+            
+            if rearranged:
+                changes.append("Rearranged existing combinations")
+        
+        return "; ".join(changes) if changes else "No changes detected"
 
     def _find_tile_by_id(self, tiles: List[Tile], tile_id: str) -> Optional[Tile]:
         """Find a tile by its ID in a list of tiles."""
