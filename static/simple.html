@@ -26,15 +26,15 @@
         .header {
             background: #2c3e50;
             color: white;
-            padding: 20px;
+            padding: 12px;
             border-radius: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             text-align: center;
         }
 
         .header h1 {
-            font-size: 2em;
-            margin-bottom: 10px;
+            font-size: 1.3em;
+            margin-bottom: 5px;
         }
 
         .game-section {
@@ -109,10 +109,58 @@
         }
 
         /* Game Board */
+        .board-wrapper {
+            position: relative;
+        }
+
+        .board-top-actions {
+            position: absolute;
+            top: -35px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
         .game-grid {
             display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
+            grid-template-columns: 1fr 50px 300px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .transfer-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            justify-content: center;
+            align-self: center;
+        }
+
+        .board-bottom-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+
+        .sort-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .icon-btn {
+            min-width: 40px;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .board-area {
@@ -377,39 +425,49 @@
             <!-- Game Board and Hand -->
             <div class="game-section">
                 <div class="section-title">Game Board</div>
-                <div class="game-grid">
-                    <div class="board-area" id="board-area">
-                        <p style="text-align: center; color: #7f8c8d; margin-top: 180px;">
-                            Board combinations will appear here
-                        </p>
+                <div class="board-wrapper">
+                    <!-- Board action buttons at top right -->
+                    <div class="board-top-actions">
+                        <button id="draw-tile-btn" class="icon-btn" title="Draw Tile">↓</button>
+                        <button id="next-turn-btn" class="icon-btn success-btn" disabled title="Next Turn">→</button>
+                        <button id="reset-board-btn" class="icon-btn secondary-btn" disabled title="Reset Board">↕</button>
                     </div>
-                    <div>
-                        <div class="section-title">Your Hand</div>
-                        <div class="hand-area" id="hand-area">
-                            <p style="text-align: center; color: #7f8c8d; margin-top: 100px;">
-                                Your tiles will appear here
+                    <div class="game-grid">
+                        <div class="board-area" id="board-area">
+                            <p style="text-align: center; color: #7f8c8d; margin-top: 180px;">
+                                Board combinations will appear here
                             </p>
                         </div>
+                        <!-- Push/Remove arrows between board and hand -->
+                        <div class="transfer-actions">
+                            <button id="push-to-board-btn" class="icon-btn primary-btn" disabled title="Push to Board">←</button>
+                            <button id="remove-from-board-btn" class="icon-btn danger-btn" disabled title="Remove from Board">→</button>
+                        </div>
+                        <div>
+                            <div class="section-title">Your Hand</div>
+                            <div class="hand-area" id="hand-area">
+                                <p style="text-align: center; color: #7f8c8d; margin-top: 100px;">
+                                    Your tiles will appear here
+                                </p>
+                            </div>
+                            <!-- Sort buttons below hand -->
+                            <div class="sort-actions">
+                                <button id="sort-number-btn" class="secondary-btn">Number</button>
+                                <button id="sort-color-btn" class="secondary-btn">Color</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Break/Group buttons at bottom of board -->
+                    <div class="board-bottom-actions">
+                        <button id="break-set-btn" class="danger-btn" disabled>Break</button>
+                        <button id="combine-tiles-btn" class="primary-btn" disabled>Group</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="game-section">
-                <div class="section-title">Game Actions</div>
-                <div class="actions-panel">
-                    <!-- UI-Only Operations -->
-                    <button id="push-to-board-btn" class="primary-btn" disabled>Push to Board</button>
-                    <button id="remove-from-board-btn" class="danger-btn" disabled>Remove from Board</button>
-                    <button id="combine-tiles-btn" class="primary-btn" disabled>Combine Tiles</button>
-                    <button id="break-set-btn" class="danger-btn" disabled>Break Set</button>
-                    <button id="reset-board-btn" class="secondary-btn" disabled>Reset Board</button>
-                    <!-- Server Operations -->
-                    <button id="draw-tile-btn">Draw Tile</button>
-                    <button id="next-turn-btn" class="success-btn" disabled>Next Turn</button>
+                <div id="game-message" class="message hidden"></div>
+                <!-- Auto refresh button moved to separate section -->
+                <div style="text-align: center; margin-top: 10px;">
                     <button id="auto-refresh-btn" class="auto-refresh">Auto Refresh: OFF</button>
                 </div>
-                <div id="game-message" class="message hidden"></div>
             </div>
         </div>
     </div>
@@ -474,6 +532,8 @@
                 this.drawTileBtn = document.getElementById('draw-tile-btn');
                 this.nextTurnBtn = document.getElementById('next-turn-btn');
                 this.autoRefreshBtn = document.getElementById('auto-refresh-btn');
+                this.sortNumberBtn = document.getElementById('sort-number-btn');
+                this.sortColorBtn = document.getElementById('sort-color-btn');
                 this.gameMessage = document.getElementById('game-message');
             }
 
@@ -491,6 +551,8 @@
                 this.drawTileBtn.addEventListener('click', () => this.drawTile());
                 this.nextTurnBtn.addEventListener('click', () => this.nextTurn());
                 this.autoRefreshBtn.addEventListener('click', () => this.toggleAutoRefresh());
+                this.sortNumberBtn.addEventListener('click', () => this.sortByNumber());
+                this.sortColorBtn.addEventListener('click', () => this.sortByColor());
 
                 // Update game ID input when selection changes
                 this.gameIdSelect.addEventListener('change', () => {
@@ -1115,6 +1177,40 @@
                     }
                     this.showMessage('Auto refresh disabled', 'warning');
                 }
+            }
+
+            sortByNumber() {
+                if (!this.gameState || !this.gameState.hand) return;
+                
+                // Sort hand tiles by number
+                const sortedTiles = [...this.gameState.hand].sort((a, b) => {
+                    if (a.is_joker) return 1;
+                    if (b.is_joker) return -1;
+                    return a.number - b.number;
+                });
+                
+                this.gameState.hand = sortedTiles;
+                this.updateUI();
+                this.showMessage('Sorted by number', 'success');
+            }
+
+            sortByColor() {
+                if (!this.gameState || !this.gameState.hand) return;
+                
+                // Sort hand tiles by color then number
+                const colorOrder = { 'black': 0, 'blue': 1, 'red': 2, 'yellow': 3 };
+                const sortedTiles = [...this.gameState.hand].sort((a, b) => {
+                    if (a.is_joker) return 1;
+                    if (b.is_joker) return -1;
+                    if (colorOrder[a.color] !== colorOrder[b.color]) {
+                        return colorOrder[a.color] - colorOrder[b.color];
+                    }
+                    return a.number - b.number;
+                });
+                
+                this.gameState.hand = sortedTiles;
+                this.updateUI();
+                this.showMessage('Sorted by color', 'success');
             }
         }
 
